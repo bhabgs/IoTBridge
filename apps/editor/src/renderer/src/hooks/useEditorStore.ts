@@ -6,20 +6,26 @@ const generateId = (): string => `el_${Date.now()}_${idCounter++}`
 
 export interface EditorStore {
   elements: EditorElement[]
-  selectedId: string | null
+  selectedIds: Set<string>
   addRect: () => void
   addText: () => void
   deleteSelected: () => void
-  selectElement: (id: string | null) => void
+  selectElement: (id: string | null, addToSelection?: boolean) => void
+  selectElements: (ids: string[]) => void
+  clearSelection: () => void
   updateElement: (id: string, updates: Partial<EditorElement>) => void
-  getSelectedElement: () => EditorElement | undefined
+  getSelectedElements: () => EditorElement[]
+  groupSelected: () => void
+  ungroupSelected: () => void
+  canGroup: () => boolean
+  canUngroup: () => boolean
   exportJSON: () => string
   importJSON: (json: string) => boolean
 }
 
 export function useEditorStore(): EditorStore {
   const [elements, setElements] = useState<EditorElement[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const addRect = useCallback(() => {
     const newElement: EditorElement = {
@@ -31,7 +37,7 @@ export function useEditorStore(): EditorStore {
       height: 80
     }
     setElements((prev) => [...prev, newElement])
-    setSelectedId(newElement.id)
+    setSelectedIds(new Set([newElement.id]))
   }, [])
 
   const addText = useCallback(() => {
@@ -45,29 +51,126 @@ export function useEditorStore(): EditorStore {
       text: 'Text'
     }
     setElements((prev) => [...prev, newElement])
-    setSelectedId(newElement.id)
+    setSelectedIds(new Set([newElement.id]))
   }, [])
 
   const deleteSelected = useCallback(() => {
-    if (selectedId) {
-      setElements((prev) => prev.filter((el) => el.id !== selectedId))
-      setSelectedId(null)
+    if (selectedIds.size > 0) {
+      setElements((prev) => prev.filter((el) => !selectedIds.has(el.id)))
+      setSelectedIds(new Set())
     }
-  }, [selectedId])
+  }, [selectedIds])
 
-  const selectElement = useCallback((id: string | null) => {
-    setSelectedId(id)
+  const selectElement = useCallback((id: string | null, addToSelection = false) => {
+    if (id === null) {
+      setSelectedIds(new Set())
+    } else if (addToSelection) {
+      setSelectedIds((prev) => {
+        const newSet = new Set(prev)
+        if (newSet.has(id)) {
+          newSet.delete(id)
+        } else {
+          newSet.add(id)
+        }
+        return newSet
+      })
+    } else {
+      setSelectedIds(new Set([id]))
+    }
+  }, [])
+
+  const selectElements = useCallback((ids: string[]) => {
+    setSelectedIds(new Set(ids))
+  }, [])
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set())
   }, [])
 
   const updateElement = useCallback((id: string, updates: Partial<EditorElement>) => {
-    setElements((prev) =>
-      prev.map((el) => (el.id === id ? { ...el, ...updates } : el))
-    )
+    setElements((prev) => {
+      const updateRecursive = (elements: EditorElement[]): EditorElement[] => {
+        return elements.map((el) => {
+          if (el.id === id) {
+            const updated = { ...el, ...updates }
+            // If it's a group and position changed, update children positions too
+            if (el.type === 'group' && el.children && (updates.x !== undefined || updates.y !== undefined)) {
+              const dx = (updates.x ?? el.x) - el.x
+              const dy = (updates.y ?? el.y) - el.y
+              updated.children = el.children.map((child) => ({
+                ...child,
+                x: child.x + dx,
+                y: child.y + dy
+              }))
+            }
+            return updated
+          }
+          if (el.type === 'group' && el.children) {
+            return { ...el, children: updateRecursive(el.children) }
+          }
+          return el
+        })
+      }
+      return updateRecursive(prev)
+    })
   }, [])
 
-  const getSelectedElement = useCallback((): EditorElement | undefined => {
-    return elements.find((el) => el.id === selectedId)
-  }, [elements, selectedId])
+  const getSelectedElements = useCallback((): EditorElement[] => {
+    return elements.filter((el) => selectedIds.has(el.id))
+  }, [elements, selectedIds])
+
+  const canGroup = useCallback((): boolean => {
+    return selectedIds.size >= 2
+  }, [selectedIds])
+
+  const canUngroup = useCallback((): boolean => {
+    if (selectedIds.size !== 1) return false
+    const selected = elements.find((el) => selectedIds.has(el.id))
+    return selected?.type === 'group'
+  }, [selectedIds, elements])
+
+  const groupSelected = useCallback(() => {
+    if (selectedIds.size < 2) return
+
+    const selectedElements = elements.filter((el) => selectedIds.has(el.id))
+    if (selectedElements.length < 2) return
+
+    // Calculate bounding box
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity
+    selectedElements.forEach((el) => {
+      minX = Math.min(minX, el.x)
+      minY = Math.min(minY, el.y)
+      maxX = Math.max(maxX, el.x + el.width)
+      maxY = Math.max(maxY, el.y + el.height)
+    })
+
+    const group: EditorElement = {
+      id: generateId(),
+      type: 'group',
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+      children: selectedElements
+    }
+
+    setElements((prev) => [...prev.filter((el) => !selectedIds.has(el.id)), group])
+    setSelectedIds(new Set([group.id]))
+  }, [selectedIds, elements])
+
+  const ungroupSelected = useCallback(() => {
+    if (selectedIds.size !== 1) return
+
+    const groupId = Array.from(selectedIds)[0]
+    const group = elements.find((el) => el.id === groupId)
+    if (!group || group.type !== 'group' || !group.children) return
+
+    setElements((prev) => [...prev.filter((el) => el.id !== groupId), ...group.children!])
+    setSelectedIds(new Set(group.children.map((el) => el.id)))
+  }, [selectedIds, elements])
 
   const exportJSON = useCallback((): string => {
     return JSON.stringify(elements, null, 2)
@@ -78,20 +181,23 @@ export function useEditorStore(): EditorStore {
       const parsed = JSON.parse(json)
       if (!Array.isArray(parsed)) return false
 
-      const validElements = parsed.filter(
-        (item): item is EditorElement =>
-          typeof item === 'object' &&
-          item !== null &&
-          typeof item.id === 'string' &&
-          (item.type === 'rect' || item.type === 'text') &&
-          typeof item.x === 'number' &&
-          typeof item.y === 'number' &&
-          typeof item.width === 'number' &&
-          typeof item.height === 'number'
-      )
+      const validateElement = (item: unknown): item is EditorElement => {
+        if (typeof item !== 'object' || item === null) return false
+        const el = item as Record<string, unknown>
+        if (typeof el.id !== 'string') return false
+        if (el.type !== 'rect' && el.type !== 'text' && el.type !== 'group') return false
+        if (typeof el.x !== 'number' || typeof el.y !== 'number') return false
+        if (typeof el.width !== 'number' || typeof el.height !== 'number') return false
+        if (el.type === 'group' && el.children) {
+          if (!Array.isArray(el.children)) return false
+          return el.children.every(validateElement)
+        }
+        return true
+      }
 
+      const validElements = parsed.filter(validateElement)
       setElements(validElements)
-      setSelectedId(null)
+      setSelectedIds(new Set())
       return true
     } catch {
       return false
@@ -100,13 +206,19 @@ export function useEditorStore(): EditorStore {
 
   return {
     elements,
-    selectedId,
+    selectedIds,
     addRect,
     addText,
     deleteSelected,
     selectElement,
+    selectElements,
+    clearSelection,
     updateElement,
-    getSelectedElement,
+    getSelectedElements,
+    groupSelected,
+    ungroupSelected,
+    canGroup,
+    canUngroup,
     exportJSON,
     importJSON
   }

@@ -4,7 +4,11 @@ interface ToolbarProps {
   onDelete: () => void
   onExport: () => void
   onImport: () => void
+  onGroup: () => void
+  onUngroup: () => void
   hasSelection: boolean
+  canGroup: boolean
+  canUngroup: boolean
 }
 
 export function Toolbar({
@@ -13,7 +17,11 @@ export function Toolbar({
   onDelete,
   onExport,
   onImport,
-  hasSelection
+  onGroup,
+  onUngroup,
+  hasSelection,
+  canGroup,
+  canUngroup
 }: ToolbarProps): React.JSX.Element {
   const handleImportClick = (): void => {
     const input = document.createElement('input')
@@ -40,6 +48,15 @@ export function Toolbar({
         </button>
         <button className="toolbar-btn" onClick={onAddText}>
           + Text
+        </button>
+      </div>
+      <div className="toolbar-section">
+        <h4>Group</h4>
+        <button className="toolbar-btn" onClick={onGroup} disabled={!canGroup}>
+          Group
+        </button>
+        <button className="toolbar-btn" onClick={onUngroup} disabled={!canUngroup}>
+          Ungroup
         </button>
       </div>
       <div className="toolbar-section">

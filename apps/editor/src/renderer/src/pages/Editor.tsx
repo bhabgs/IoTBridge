@@ -36,15 +36,6 @@ export function Editor(): React.JSX.Element {
     }
   }, [handleImportEvent])
 
-  const handleUpdateSelected = useCallback(
-    (updates: Partial<Parameters<typeof store.updateElement>[1]>) => {
-      if (store.selectedId) {
-        store.updateElement(store.selectedId, updates)
-      }
-    },
-    [store]
-  )
-
   return (
     <div className="editor-container">
       <Toolbar
@@ -53,17 +44,22 @@ export function Editor(): React.JSX.Element {
         onDelete={store.deleteSelected}
         onExport={handleExport}
         onImport={() => {}}
-        hasSelection={store.selectedId !== null}
+        onGroup={store.groupSelected}
+        onUngroup={store.ungroupSelected}
+        hasSelection={store.selectedIds.size > 0}
+        canGroup={store.canGroup()}
+        canUngroup={store.canUngroup()}
       />
       <div className="canvas-container">
         <PixiCanvas
           elements={store.elements}
-          selectedId={store.selectedId}
+          selectedIds={store.selectedIds}
           onSelect={store.selectElement}
+          onSelectMultiple={store.selectElements}
           onUpdateElement={store.updateElement}
         />
       </div>
-      <PropertyPanel element={store.getSelectedElement()} onUpdate={handleUpdateSelected} />
+      <PropertyPanel elements={store.getSelectedElements()} onUpdate={store.updateElement} />
     </div>
   )
 }

@@ -194,3 +194,39 @@ body {
 .property-input[type='number'] {
   -moz-appearance: textfield;
 }
+
+.multi-selection {
+  color: #4a90d9;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.selected-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.selected-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #1a1a2e;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid #3a3a5a;
+}
+
+.item-type {
+  font-size: 12px;
+  color: #4a90d9;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.item-id {
+  font-size: 11px;
+  color: #888;
+  font-family: monospace;
+}

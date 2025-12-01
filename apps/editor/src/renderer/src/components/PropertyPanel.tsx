@@ -1,12 +1,12 @@
 import type { EditorElement } from '../types/element'
 
 interface PropertyPanelProps {
-  element: EditorElement | undefined
-  onUpdate: (updates: Partial<EditorElement>) => void
+  elements: EditorElement[]
+  onUpdate: (id: string, updates: Partial<EditorElement>) => void
 }
 
-export function PropertyPanel({ element, onUpdate }: PropertyPanelProps): React.JSX.Element {
-  if (!element) {
+export function PropertyPanel({ elements, onUpdate }: PropertyPanelProps): React.JSX.Element {
+  if (elements.length === 0) {
     return (
       <div className="property-panel">
         <h3>Properties</h3>
@@ -15,13 +15,32 @@ export function PropertyPanel({ element, onUpdate }: PropertyPanelProps): React.
     )
   }
 
+  if (elements.length > 1) {
+    return (
+      <div className="property-panel">
+        <h3>Properties</h3>
+        <p className="multi-selection">{elements.length} elements selected</p>
+        <div className="selected-list">
+          {elements.map((el) => (
+            <div key={el.id} className="selected-item">
+              <span className="item-type">{el.type}</span>
+              <span className="item-id">{el.id.slice(-8)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  const element = elements[0]
+
   const handleChange = (field: keyof EditorElement, value: string): void => {
     if (field === 'text') {
-      onUpdate({ [field]: value })
+      onUpdate(element.id, { [field]: value })
     } else if (field === 'x' || field === 'y' || field === 'width' || field === 'height') {
       const numValue = parseInt(value, 10)
       if (!isNaN(numValue) && numValue >= 0) {
-        onUpdate({ [field]: numValue })
+        onUpdate(element.id, { [field]: numValue })
       }
     }
   }
