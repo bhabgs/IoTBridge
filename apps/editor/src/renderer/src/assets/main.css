@@ -1,171 +1,196 @@
 @import './base.css';
 
-body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background-image: url('./wavy-lines.svg');
-  background-size: cover;
-  user-select: none;
+* {
+  box-sizing: border-box;
 }
 
-code {
-  font-weight: 600;
-  padding: 3px 5px;
-  border-radius: 2px;
-  background-color: var(--color-background-mute);
-  font-family:
-    ui-monospace,
-    SFMono-Regular,
-    SF Mono,
-    Menlo,
-    Consolas,
-    Liberation Mono,
-    monospace;
-  font-size: 85%;
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: #1a1a2e;
 }
 
 #root {
+  height: 100%;
+  width: 100%;
+}
+
+.editor-container {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 100vh;
+  width: 100vw;
+}
+
+.toolbar {
+  width: 180px;
+  background-color: #16213e;
+  color: #e0e0e0;
+  padding: 16px;
+  display: flex;
   flex-direction: column;
-  margin-bottom: 80px;
+  gap: 16px;
+  border-right: 1px solid #2a2a4a;
 }
 
-.logo {
-  margin-bottom: 20px;
-  -webkit-user-drag: none;
-  height: 128px;
-  width: 128px;
-  will-change: filter;
-  transition: filter 300ms;
+.toolbar h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  color: #ffffff;
+  border-bottom: 1px solid #3a3a5a;
+  padding-bottom: 8px;
 }
 
-.logo:hover {
-  filter: drop-shadow(0 0 1.2em #6988e6aa);
+.toolbar h4 {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.creator {
-  font-size: 14px;
-  line-height: 16px;
-  color: var(--ev-c-text-2);
-  font-weight: 600;
-  margin-bottom: 10px;
-}
-
-.text {
-  font-size: 28px;
-  color: var(--ev-c-text-1);
-  font-weight: 700;
-  line-height: 32px;
-  text-align: center;
-  margin: 0 10px;
-  padding: 16px 0;
-}
-
-.tip {
-  font-size: 16px;
-  line-height: 24px;
-  color: var(--ev-c-text-2);
-  font-weight: 600;
-}
-
-.react {
-  background: -webkit-linear-gradient(315deg, #087ea4 55%, #7c93ee);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-weight: 700;
-}
-
-.ts {
-  background: -webkit-linear-gradient(315deg, #3178c6 45%, #f0dc4e);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-weight: 700;
-}
-
-.actions {
+.toolbar-section {
   display: flex;
-  padding-top: 32px;
-  margin: -6px;
-  flex-wrap: wrap;
-  justify-content: flex-start;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.action {
-  flex-shrink: 0;
-  padding: 6px;
-}
-
-.action a {
+.toolbar-btn {
+  background-color: #4a90d9;
+  color: white;
+  border: none;
+  padding: 10px 12px;
+  border-radius: 6px;
   cursor: pointer;
-  text-decoration: none;
-  display: inline-block;
-  border: 1px solid transparent;
-  text-align: center;
-  font-weight: 600;
-  white-space: nowrap;
-  border-radius: 20px;
-  padding: 0 20px;
-  line-height: 38px;
-  font-size: 14px;
-  border-color: var(--ev-button-alt-border);
-  color: var(--ev-button-alt-text);
-  background-color: var(--ev-button-alt-bg);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 0.2s, transform 0.1s;
 }
 
-.action a:hover {
-  border-color: var(--ev-button-alt-hover-border);
-  color: var(--ev-button-alt-hover-text);
-  background-color: var(--ev-button-alt-hover-bg);
+.toolbar-btn:hover:not(:disabled) {
+  background-color: #5aa0e9;
+  transform: translateY(-1px);
 }
 
-.versions {
-  position: absolute;
-  bottom: 30px;
-  margin: 0 auto;
-  padding: 15px 0;
-  font-family: 'Menlo', 'Lucida Console', monospace;
-  display: inline-flex;
+.toolbar-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.toolbar-btn:disabled {
+  background-color: #3a3a5a;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.toolbar-btn-danger {
+  background-color: #d94a4a;
+}
+
+.toolbar-btn-danger:hover:not(:disabled) {
+  background-color: #e95a5a;
+}
+
+.canvas-container {
+  flex: 1;
+  position: relative;
+  background-color: #2a2a4a;
   overflow: hidden;
-  align-items: center;
-  border-radius: 22px;
-  background-color: #202127;
-  backdrop-filter: blur(24px);
 }
 
-.versions li {
+.pixi-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.pixi-canvas canvas {
   display: block;
-  float: left;
-  border-right: 1px solid var(--ev-c-gray-1);
-  padding: 0 20px;
-  font-size: 14px;
-  line-height: 14px;
-  opacity: 0.8;
-  &:last-child {
-    border: none;
-  }
 }
 
-@media (max-width: 720px) {
-  .text {
-    font-size: 20px;
-  }
+.property-panel {
+  width: 220px;
+  background-color: #16213e;
+  color: #e0e0e0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 1px solid #2a2a4a;
+  overflow-y: auto;
 }
 
-@media (max-width: 620px) {
-  .versions {
-    display: none;
-  }
+.property-panel h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  color: #ffffff;
+  border-bottom: 1px solid #3a3a5a;
+  padding-bottom: 8px;
 }
 
-@media (max-width: 350px) {
-  .tip,
-  .actions {
-    display: none;
-  }
+.no-selection {
+  color: #666;
+  font-style: italic;
+  font-size: 13px;
+}
+
+.property-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.property-info .property-label {
+  color: #888;
+}
+
+.property-info .property-value {
+  color: #4a90d9;
+  font-family: monospace;
+  font-size: 11px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.property-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.property-label {
+  font-size: 12px;
+  color: #888;
+  font-weight: 500;
+}
+
+.property-input {
+  background-color: #1a1a2e;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  padding: 8px 10px;
+  font-size: 13px;
+  transition: border-color 0.2s;
+}
+
+.property-input:focus {
+  outline: none;
+  border-color: #4a90d9;
+}
+
+.property-input::-webkit-inner-spin-button,
+.property-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.property-input[type='number'] {
+  -moz-appearance: textfield;
 }
