@@ -3,9 +3,12 @@ import { useEditorStore } from '../hooks/useEditorStore'
 import { PixiCanvas } from '../components/PixiCanvas'
 import { Toolbar } from '../components/Toolbar'
 import { PropertyPanel } from '../components/PropertyPanel'
+import { useI18n } from '../i18n'
+import type { ElementType } from '../types/element'
 
 export function Editor(): React.JSX.Element {
   const store = useEditorStore()
+  const { t, isRTL } = useI18n()
 
   const handleExport = useCallback(() => {
     const json = store.exportJSON()
@@ -23,8 +26,15 @@ export function Editor(): React.JSX.Element {
       const customEvent = e as CustomEvent<string>
       const success = store.importJSON(customEvent.detail)
       if (!success) {
-        alert('Failed to import JSON. Please check the file format.')
+        alert(t.importError)
       }
+    },
+    [store, t]
+  )
+
+  const handleDrop = useCallback(
+    (type: ElementType, x: number, y: number) => {
+      store.addElementAt(type, x, y)
     },
     [store]
   )
@@ -37,10 +47,8 @@ export function Editor(): React.JSX.Element {
   }, [handleImportEvent])
 
   return (
-    <div className="editor-container">
+    <div className={`editor-container ${isRTL ? 'rtl' : ''}`}>
       <Toolbar
-        onAddRect={store.addRect}
-        onAddText={store.addText}
         onDelete={store.deleteSelected}
         onExport={handleExport}
         onImport={() => {}}
@@ -57,6 +65,7 @@ export function Editor(): React.JSX.Element {
           onSelect={store.selectElement}
           onSelectMultiple={store.selectElements}
           onUpdateElement={store.updateElement}
+          onDropElement={handleDrop}
         />
       </div>
       <PropertyPanel elements={store.getSelectedElements()} onUpdate={store.updateElement} />

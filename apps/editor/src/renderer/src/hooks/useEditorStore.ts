@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { EditorElement } from '../types/element'
+import type { EditorElement, ElementType } from '../types/element'
 
 let idCounter = 0
 const generateId = (): string => `el_${Date.now()}_${idCounter++}`
@@ -9,6 +9,7 @@ export interface EditorStore {
   selectedIds: Set<string>
   addRect: () => void
   addText: () => void
+  addElementAt: (type: ElementType, x: number, y: number) => void
   deleteSelected: () => void
   selectElement: (id: string | null, addToSelection?: boolean) => void
   selectElements: (ids: string[]) => void
@@ -49,6 +50,41 @@ export function useEditorStore(): EditorStore {
       width: 120,
       height: 30,
       text: 'Text'
+    }
+    setElements((prev) => [...prev, newElement])
+    setSelectedIds(new Set([newElement.id]))
+  }, [])
+
+  const addElementAt = useCallback((type: ElementType, x: number, y: number) => {
+    const getSize = (t: ElementType): { width: number; height: number } => {
+      switch (t) {
+        case 'rect':
+          return { width: 100, height: 80 }
+        case 'circle':
+          return { width: 80, height: 80 }
+        case 'ellipse':
+          return { width: 100, height: 60 }
+        case 'triangle':
+          return { width: 80, height: 70 }
+        case 'diamond':
+          return { width: 80, height: 80 }
+        case 'line':
+          return { width: 100, height: 4 }
+        case 'text':
+          return { width: 120, height: 30 }
+        default:
+          return { width: 100, height: 80 }
+      }
+    }
+
+    const size = getSize(type)
+    const newElement: EditorElement = {
+      id: generateId(),
+      type,
+      x,
+      y,
+      ...size,
+      ...(type === 'text' ? { text: 'Text' } : {})
     }
     setElements((prev) => [...prev, newElement])
     setSelectedIds(new Set([newElement.id]))
@@ -209,6 +245,7 @@ export function useEditorStore(): EditorStore {
     selectedIds,
     addRect,
     addText,
+    addElementAt,
     deleteSelected,
     selectElement,
     selectElements,

@@ -1,4 +1,5 @@
 import type { EditorElement } from '../types/element'
+import { useI18n } from '../i18n'
 
 interface PropertyPanelProps {
   elements: EditorElement[]
@@ -6,11 +7,13 @@ interface PropertyPanelProps {
 }
 
 export function PropertyPanel({ elements, onUpdate }: PropertyPanelProps): React.JSX.Element {
+  const { t } = useI18n()
+
   if (elements.length === 0) {
     return (
       <div className="property-panel">
-        <h3>Properties</h3>
-        <p className="no-selection">No element selected</p>
+        <h3>{t.properties.title}</h3>
+        <p className="no-selection">{t.properties.noSelection}</p>
       </div>
     )
   }
@@ -18,12 +21,14 @@ export function PropertyPanel({ elements, onUpdate }: PropertyPanelProps): React
   if (elements.length > 1) {
     return (
       <div className="property-panel">
-        <h3>Properties</h3>
-        <p className="multi-selection">{elements.length} elements selected</p>
+        <h3>{t.properties.title}</h3>
+        <p className="multi-selection">
+          {t.properties.multiSelection.replace('{count}', String(elements.length))}
+        </p>
         <div className="selected-list">
           {elements.map((el) => (
             <div key={el.id} className="selected-item">
-              <span className="item-type">{el.type}</span>
+              <span className="item-type">{t.types[el.type]}</span>
               <span className="item-id">{el.id.slice(-8)}</span>
             </div>
           ))}
@@ -47,17 +52,17 @@ export function PropertyPanel({ elements, onUpdate }: PropertyPanelProps): React
 
   return (
     <div className="property-panel">
-      <h3>Properties</h3>
+      <h3>{t.properties.title}</h3>
       <div className="property-info">
-        <span className="property-label">ID:</span>
+        <span className="property-label">{t.properties.id}:</span>
         <span className="property-value">{element.id}</span>
       </div>
       <div className="property-info">
-        <span className="property-label">Type:</span>
-        <span className="property-value">{element.type}</span>
+        <span className="property-label">{t.properties.type}:</span>
+        <span className="property-value">{t.types[element.type]}</span>
       </div>
       <div className="property-group">
-        <label className="property-label">X</label>
+        <label className="property-label">{t.properties.x}</label>
         <input
           type="number"
           className="property-input"
@@ -67,7 +72,7 @@ export function PropertyPanel({ elements, onUpdate }: PropertyPanelProps): React
         />
       </div>
       <div className="property-group">
-        <label className="property-label">Y</label>
+        <label className="property-label">{t.properties.y}</label>
         <input
           type="number"
           className="property-input"
@@ -77,7 +82,7 @@ export function PropertyPanel({ elements, onUpdate }: PropertyPanelProps): React
         />
       </div>
       <div className="property-group">
-        <label className="property-label">Width</label>
+        <label className="property-label">{t.properties.width}</label>
         <input
           type="number"
           className="property-input"
@@ -87,7 +92,7 @@ export function PropertyPanel({ elements, onUpdate }: PropertyPanelProps): React
         />
       </div>
       <div className="property-group">
-        <label className="property-label">Height</label>
+        <label className="property-label">{t.properties.height}</label>
         <input
           type="number"
           className="property-input"
@@ -98,7 +103,7 @@ export function PropertyPanel({ elements, onUpdate }: PropertyPanelProps): React
       </div>
       {element.type === 'text' && (
         <div className="property-group">
-          <label className="property-label">Text</label>
+          <label className="property-label">{t.properties.text}</label>
           <input
             type="text"
             className="property-input"
