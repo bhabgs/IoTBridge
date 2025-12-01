@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { EditorElement, ElementType } from '../types/element'
+import type { EditorElement, ElementType, Point } from '../types/element'
 
 let idCounter = 0
 const generateId = (): string => `el_${Date.now()}_${idCounter++}`
@@ -10,6 +10,7 @@ export interface EditorStore {
   addRect: () => void
   addText: () => void
   addElementAt: (type: ElementType, x: number, y: number) => void
+  addPipe: (startElementId: string, endElementId: string, points: Point[]) => void
   deleteSelected: () => void
   selectElement: (id: string | null, addToSelection?: boolean) => void
   selectElements: (ids: string[]) => void
@@ -56,35 +57,83 @@ export function useEditorStore(): EditorStore {
   }, [])
 
   const addElementAt = useCallback((type: ElementType, x: number, y: number) => {
-    const getSize = (t: ElementType): { width: number; height: number } => {
+    const getDefaults = (t: ElementType): {
+      width: number
+      height: number
+      fillColor: string
+      strokeColor: string
+      strokeWidth: number
+      opacity: number
+    } => {
       switch (t) {
         case 'rect':
-          return { width: 100, height: 80 }
+          return { width: 100, height: 80, fillColor: '#4a90d9', strokeColor: '#2c5282', strokeWidth: 1, opacity: 1 }
         case 'circle':
-          return { width: 80, height: 80 }
+          return { width: 80, height: 80, fillColor: '#48bb78', strokeColor: '#276749', strokeWidth: 1, opacity: 1 }
         case 'ellipse':
-          return { width: 100, height: 60 }
+          return { width: 100, height: 60, fillColor: '#48bb78', strokeColor: '#276749', strokeWidth: 1, opacity: 1 }
         case 'triangle':
-          return { width: 80, height: 70 }
+          return { width: 80, height: 70, fillColor: '#ed8936', strokeColor: '#c05621', strokeWidth: 1, opacity: 1 }
         case 'diamond':
-          return { width: 80, height: 80 }
+          return { width: 80, height: 80, fillColor: '#9f7aea', strokeColor: '#6b46c1', strokeWidth: 1, opacity: 1 }
         case 'line':
-          return { width: 100, height: 4 }
+          return { width: 100, height: 4, fillColor: 'transparent', strokeColor: '#4a5568', strokeWidth: 3, opacity: 1 }
         case 'text':
-          return { width: 120, height: 30 }
+          return { width: 120, height: 30, fillColor: '#ffffff', strokeColor: '#cccccc', strokeWidth: 1, opacity: 1 }
         default:
-          return { width: 100, height: 80 }
+          return { width: 100, height: 80, fillColor: '#4a90d9', strokeColor: '#2c5282', strokeWidth: 1, opacity: 1 }
       }
     }
 
-    const size = getSize(type)
+    const defaults = getDefaults(type)
     const newElement: EditorElement = {
       id: generateId(),
       type,
       x,
       y,
-      ...size,
-      ...(type === 'text' ? { text: 'Text' } : {})
+      width: defaults.width,
+      height: defaults.height,
+      fillColor: defaults.fillColor,
+      strokeColor: defaults.strokeColor,
+      strokeWidth: defaults.strokeWidth,
+      opacity: defaults.opacity,
+      ...(type === 'text' ? { text: 'Text', fontSize: 16 } : {})
+    }
+    setElements((prev) => [...prev, newElement])
+    setSelectedIds(new Set([newElement.id]))
+  }, [])
+
+  const addPipe = useCallback((startElementId: string, endElementId: string, points: Point[]) => {
+    if (points.length < 2) return
+
+    // Calculate bounding box
+    const xs = points.map(p => p.x)
+    const ys = points.map(p => p.y)
+    const minX = Math.min(...xs)
+    const minY = Math.min(...ys)
+    const maxX = Math.max(...xs)
+    const maxY = Math.max(...ys)
+
+    // Normalize points relative to bounding box
+    const normalizedPoints = points.map(p => ({
+      x: p.x - minX,
+      y: p.y - minY
+    }))
+
+    const newElement: EditorElement = {
+      id: generateId(),
+      type: 'pipe',
+      x: minX,
+      y: minY,
+      width: Math.max(maxX - minX, 1),
+      height: Math.max(maxY - minY, 1),
+      points: normalizedPoints,
+      pipeWidth: 8,
+      strokeColor: '#4a5568',
+      fillColor: '#718096',
+      opacity: 1,
+      startElementId,
+      endElementId
     }
     setElements((prev) => [...prev, newElement])
     setSelectedIds(new Set([newElement.id]))
@@ -246,6 +295,7 @@ export function useEditorStore(): EditorStore {
     addRect,
     addText,
     addElementAt,
+    addPipe,
     deleteSelected,
     selectElement,
     selectElements,

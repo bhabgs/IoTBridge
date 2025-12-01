@@ -10,6 +10,8 @@ interface ToolbarProps {
   hasSelection: boolean
   canGroup: boolean
   canUngroup: boolean
+  drawingMode: 'none' | 'pipe'
+  onToggleDrawingMode: (mode: 'none' | 'pipe') => void
 }
 
 export function Toolbar({
@@ -20,7 +22,9 @@ export function Toolbar({
   onUngroup,
   hasSelection,
   canGroup,
-  canUngroup
+  canUngroup,
+  drawingMode,
+  onToggleDrawingMode
 }: ToolbarProps): React.JSX.Element {
   const { t, language, setLanguage } = useI18n()
 
@@ -111,6 +115,13 @@ export function Toolbar({
             <div className="draggable-icon text-icon" />
           </div>
         </div>
+        <button
+          className={`toolbar-btn pipe-btn ${drawingMode === 'pipe' ? 'active' : ''}`}
+          onClick={() => onToggleDrawingMode(drawingMode === 'pipe' ? 'none' : 'pipe')}
+          title={t.toolbar.addPipe}
+        >
+          {drawingMode === 'pipe' ? t.toolbar.drawingPipe : t.toolbar.addPipe}
+        </button>
       </div>
       <div className="toolbar-section">
         <h4>{t.toolbar.group}</h4>

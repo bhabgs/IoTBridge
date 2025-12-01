@@ -95,6 +95,25 @@ body {
   background-color: #e95a5a;
 }
 
+/* Pipe drawing button */
+.pipe-btn.active {
+  background-color: #48bb78;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.pipe-btn.active:hover {
+  background-color: #38a169;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(72, 187, 120, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(72, 187, 120, 0);
+  }
+}
+
 /* Draggable Items */
 .draggable-grid {
   display: grid;
@@ -259,6 +278,61 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.property-group.half {
+  flex: 1;
+  min-width: 0;
+}
+
+.property-row {
+  display: flex;
+  gap: 8px;
+}
+
+.property-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #2a2a4a;
+}
+
+.property-section-title {
+  margin: 0 0 8px 0;
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.color-input-wrapper {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.color-input {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 2px;
+  cursor: pointer;
+  background-color: transparent;
+}
+
+.color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.color-text {
+  flex: 1;
+  font-family: monospace;
+  font-size: 12px;
 }
 
 .property-label {

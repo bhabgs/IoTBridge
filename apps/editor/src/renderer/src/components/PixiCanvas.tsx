@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import 'pixi.js/unsafe-eval'
 import { Application, Graphics, Text, Container, FederatedPointerEvent, FederatedWheelEvent } from 'pixi.js'
-import type { EditorElement, ElementType } from '../types/element'
+import type { EditorElement, ElementType, Point } from '../types/element'
 
 interface PixiCanvasProps {
   elements: EditorElement[]
@@ -10,11 +10,19 @@ interface PixiCanvasProps {
   onSelectMultiple: (ids: string[]) => void
   onUpdateElement: (id: string, updates: Partial<EditorElement>) => void
   onDropElement: (type: ElementType, x: number, y: number) => void
+  drawingMode: 'none' | 'pipe'
+  onPipeComplete: (startElementId: string, endElementId: string, points: Point[]) => void
 }
 
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 5
 const ZOOM_STEP = 0.1
+
+// Helper to convert hex color string to number
+const hexToNumber = (hex: string): number => {
+  if (!hex || hex === 'transparent') return 0xffffff
+  return parseInt(hex.replace('#', ''), 16)
+}
 
 export function PixiCanvas({
   elements,
@@ -22,7 +30,9 @@ export function PixiCanvas({
   onSelect,
   onSelectMultiple,
   onUpdateElement,
-  onDropElement
+  onDropElement,
+  drawingMode,
+  onPipeComplete
 }: PixiCanvasProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<Application | null>(null)
@@ -30,21 +40,37 @@ export function PixiCanvas({
   const gridRef = useRef<Graphics | null>(null)
   const elementsContainerRef = useRef<Container | null>(null)
   const selectionBoxRef = useRef<Graphics | null>(null)
+  const pipePreviewRef = useRef<Graphics | null>(null)
   const graphicsMapRef = useRef<Map<string, Graphics | Container>>(new Map())
   const [isReady, setIsReady] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [isSpacePressed, setIsSpacePressed] = useState(false)
   const spaceRef = useRef(false)
+  const [pipePoints, setPipePoints] = useState<Point[]>([])
+  const [mousePos, setMousePos] = useState<Point | null>(null)
+  const [pipeStartElement, setPipeStartElement] = useState<string | null>(null)
+  const [hoveredElementId, setHoveredElementId] = useState<string | null>(null)
 
   const onSelectRef = useRef(onSelect)
   const onSelectMultipleRef = useRef(onSelectMultiple)
   const onUpdateElementRef = useRef(onUpdateElement)
   const onDropElementRef = useRef(onDropElement)
+  const onPipeCompleteRef = useRef(onPipeComplete)
 
   onSelectRef.current = onSelect
   onSelectMultipleRef.current = onSelectMultiple
   onUpdateElementRef.current = onUpdateElement
   onDropElementRef.current = onDropElement
+  onPipeCompleteRef.current = onPipeComplete
+
+  const drawingModeRef = useRef(drawingMode)
+  drawingModeRef.current = drawingMode
+
+  const pipePointsRef = useRef(pipePoints)
+  pipePointsRef.current = pipePoints
+
+  const pipeStartElementRef = useRef(pipeStartElement)
+  pipeStartElementRef.current = pipeStartElement
 
   const zoomRef = useRef(zoom)
   zoomRef.current = zoom
@@ -130,6 +156,32 @@ export function PixiCanvas({
       x: (screenX - viewport.x) / viewport.scale.x,
       y: (screenY - viewport.y) / viewport.scale.y
     }
+  }, [])
+
+  // Get center point of an element for pipe connection
+  const getElementCenter = useCallback((elementId: string): Point | null => {
+    const element = elementsRef.current.find(el => el.id === elementId)
+    if (!element) return null
+    return {
+      x: element.x + element.width / 2,
+      y: element.y + element.height / 2
+    }
+  }, [])
+
+  // Find element at world position (excluding pipes)
+  const findElementAtPosition = useCallback((worldX: number, worldY: number): EditorElement | null => {
+    // Search in reverse order (top elements first)
+    for (let i = elementsRef.current.length - 1; i >= 0; i--) {
+      const el = elementsRef.current[i]
+      // Skip pipes - we want to connect to other elements
+      if (el.type === 'pipe') continue
+
+      if (worldX >= el.x && worldX <= el.x + el.width &&
+          worldY >= el.y && worldY <= el.y + el.height) {
+        return el
+      }
+    }
+    return null
   }, [])
 
   const getElementsInBox = useCallback(
@@ -264,6 +316,11 @@ export function PixiCanvas({
       app.stage.addChild(selectionBox)
       selectionBoxRef.current = selectionBox
 
+      // Pipe preview graphics (inside viewport for world coordinates)
+      const pipePreview = new Graphics()
+      viewport.addChild(pipePreview)
+      pipePreviewRef.current = pipePreview
+
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -275,6 +332,42 @@ export function PixiCanvas({
       })
 
       app.stage.on('pointerdown', (e: FederatedPointerEvent) => {
+        // Handle pipe drawing mode
+        if (drawingModeRef.current === 'pipe' && e.button === 0 && !e.altKey && !spaceRef.current) {
+          const worldPos = screenToWorld(e.globalX, e.globalY)
+          const clickedElement = findElementAtPosition(worldPos.x, worldPos.y)
+
+          if (!pipeStartElementRef.current) {
+            // Need to start from an element
+            if (clickedElement) {
+              const center = getElementCenter(clickedElement.id)
+              if (center) {
+                setPipeStartElement(clickedElement.id)
+                setPipePoints([center])
+              }
+            }
+            // If clicked on empty space without start element, do nothing
+            return
+          } else {
+            // Already have a start element
+            if (clickedElement && clickedElement.id !== pipeStartElementRef.current) {
+              // Clicked on a different element - finish the pipe
+              const endCenter = getElementCenter(clickedElement.id)
+              if (endCenter) {
+                const finalPoints = [...pipePointsRef.current, endCenter]
+                onPipeCompleteRef.current(pipeStartElementRef.current, clickedElement.id, finalPoints)
+                setPipePoints([])
+                setPipeStartElement(null)
+              }
+            } else if (!clickedElement) {
+              // Clicked on empty space - add intermediate point
+              setPipePoints(prev => [...prev, { x: Math.round(worldPos.x), y: Math.round(worldPos.y) }])
+            }
+            // If clicked on same start element, do nothing
+            return
+          }
+        }
+
         // Middle mouse button, Alt+click, or Space+click for panning
         if (e.button === 1 || (e.button === 0 && e.altKey) || (e.button === 0 && spaceRef.current)) {
           panStateRef.current = {
@@ -299,6 +392,18 @@ export function PixiCanvas({
       })
 
       app.stage.on('pointermove', (e: FederatedPointerEvent) => {
+        // Track mouse position and hovered element for pipe drawing
+        if (drawingModeRef.current === 'pipe') {
+          const worldPos = screenToWorld(e.globalX, e.globalY)
+          setMousePos({ x: Math.round(worldPos.x), y: Math.round(worldPos.y) })
+
+          // Find element under cursor for highlight
+          const hoveredEl = findElementAtPosition(worldPos.x, worldPos.y)
+          setHoveredElementId(hoveredEl?.id ?? null)
+        } else {
+          setHoveredElementId(null)
+        }
+
         // Handle panning
         const panState = panStateRef.current
         if (panState.isPanning) {
@@ -385,7 +490,7 @@ export function PixiCanvas({
         setIsReady(false)
       }
     }
-  }, [getElementsInBox, updateSelectionBox, handleZoom, screenToWorld])
+  }, [getElementsInBox, updateSelectionBox, handleZoom, screenToWorld, getElementCenter, findElementAtPosition])
 
   // Redraw grid when ready and handle resize
   useEffect(() => {
@@ -418,13 +523,18 @@ export function PixiCanvas({
     }
   }, [isReady, redrawGrid])
 
-  // Handle spacebar for pan mode
+  // Handle spacebar for pan mode and Escape to cancel pipe drawing
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.code === 'Space' && !e.repeat) {
         e.preventDefault()
         spaceRef.current = true
         setIsSpacePressed(true)
+      }
+      // Escape to cancel pipe drawing
+      if (e.code === 'Escape' && drawingMode === 'pipe') {
+        setPipePoints([])
+        setPipeStartElement(null)
       }
     }
 
@@ -442,7 +552,50 @@ export function PixiCanvas({
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [])
+  }, [drawingMode])
+
+  // Draw pipe preview
+  useEffect(() => {
+    const preview = pipePreviewRef.current
+    if (!preview) return
+
+    preview.clear()
+
+    if (drawingMode !== 'pipe' || pipePoints.length === 0) return
+
+    // Draw existing points and lines
+    preview.setStrokeStyle({ width: 8, color: 0x718096, alpha: 0.8 })
+
+    // Draw lines between points
+    if (pipePoints.length >= 1) {
+      preview.moveTo(pipePoints[0].x, pipePoints[0].y)
+      for (let i = 1; i < pipePoints.length; i++) {
+        preview.lineTo(pipePoints[i].x, pipePoints[i].y)
+      }
+      // Draw preview line to mouse position
+      if (mousePos) {
+        preview.lineTo(mousePos.x, mousePos.y)
+      }
+      preview.stroke()
+    }
+
+    // Draw points
+    pipePoints.forEach((point, index) => {
+      preview.circle(point.x, point.y, 6)
+      preview.fill({ color: index === 0 ? 0x48bb78 : 0x4a90d9 })
+    })
+  }, [drawingMode, pipePoints, mousePos])
+
+  // Clear pipe points when exiting drawing mode
+  useEffect(() => {
+    if (drawingMode === 'none') {
+      setPipePoints([])
+      setMousePos(null)
+      setPipeStartElement(null)
+      setHoveredElementId(null)
+      pipePreviewRef.current?.clear()
+    }
+  }, [drawingMode])
 
   useEffect(() => {
     if (!isReady) return
@@ -467,6 +620,8 @@ export function PixiCanvas({
     const renderElement = (element: EditorElement, parentContainer: Container): void => {
       let displayObj = graphicsMapRef.current.get(element.id)
       const isSelected = selectedIds.has(element.id)
+      const isHoveredForPipe = drawingMode === 'pipe' && hoveredElementId === element.id && element.type !== 'pipe'
+      const isPipeStart = pipeStartElement === element.id
 
       if (element.type === 'rect') {
         let graphics = displayObj as Graphics | undefined
@@ -478,15 +633,15 @@ export function PixiCanvas({
           graphicsMapRef.current.set(element.id, graphics)
         }
 
+        const fillColor = hexToNumber(element.fillColor || '#4a90d9')
+        const strokeColor = isPipeStart ? 0x48bb78 : isHoveredForPipe ? 0x38b2ac : isSelected ? 0xff6b35 : hexToNumber(element.strokeColor || '#2c5282')
+        const strokeWidth = isPipeStart || isHoveredForPipe ? 4 : isSelected ? 3 : (element.strokeWidth ?? 1)
+        const opacity = element.opacity ?? 1
+
         graphics.clear()
         graphics.rect(0, 0, element.width, element.height)
-        graphics.fill({ color: 0x4a90d9 })
-
-        if (isSelected) {
-          graphics.stroke({ width: 3, color: 0xff6b35 })
-        } else {
-          graphics.stroke({ width: 1, color: 0x2c5282 })
-        }
+        graphics.fill({ color: fillColor, alpha: opacity })
+        graphics.stroke({ width: strokeWidth, color: strokeColor })
 
         graphics.position.set(element.x, element.y)
 
@@ -518,17 +673,17 @@ export function PixiCanvas({
           graphicsMapRef.current.set(element.id, graphics)
         }
 
+        const fillColor = hexToNumber(element.fillColor || '#48bb78')
+        const strokeColor = isPipeStart ? 0x48bb78 : isHoveredForPipe ? 0x38b2ac : isSelected ? 0xff6b35 : hexToNumber(element.strokeColor || '#276749')
+        const strokeWidth = isPipeStart || isHoveredForPipe ? 4 : isSelected ? 3 : (element.strokeWidth ?? 1)
+        const opacity = element.opacity ?? 1
+
         graphics.clear()
         const rx = element.width / 2
         const ry = element.height / 2
         graphics.ellipse(rx, ry, rx, ry)
-        graphics.fill({ color: 0x48bb78 })
-
-        if (isSelected) {
-          graphics.stroke({ width: 3, color: 0xff6b35 })
-        } else {
-          graphics.stroke({ width: 1, color: 0x276749 })
-        }
+        graphics.fill({ color: fillColor, alpha: opacity })
+        graphics.stroke({ width: strokeWidth, color: strokeColor })
 
         graphics.position.set(element.x, element.y)
 
@@ -560,18 +715,18 @@ export function PixiCanvas({
           graphicsMapRef.current.set(element.id, graphics)
         }
 
+        const fillColor = hexToNumber(element.fillColor || '#ed8936')
+        const strokeColor = isPipeStart ? 0x48bb78 : isHoveredForPipe ? 0x38b2ac : isSelected ? 0xff6b35 : hexToNumber(element.strokeColor || '#c05621')
+        const strokeWidth = isPipeStart || isHoveredForPipe ? 4 : isSelected ? 3 : (element.strokeWidth ?? 1)
+        const opacity = element.opacity ?? 1
+
         graphics.clear()
         graphics.moveTo(element.width / 2, 0)
         graphics.lineTo(element.width, element.height)
         graphics.lineTo(0, element.height)
         graphics.closePath()
-        graphics.fill({ color: 0xed8936 })
-
-        if (isSelected) {
-          graphics.stroke({ width: 3, color: 0xff6b35 })
-        } else {
-          graphics.stroke({ width: 1, color: 0xc05621 })
-        }
+        graphics.fill({ color: fillColor, alpha: opacity })
+        graphics.stroke({ width: strokeWidth, color: strokeColor })
 
         graphics.position.set(element.x, element.y)
 
@@ -603,6 +758,11 @@ export function PixiCanvas({
           graphicsMapRef.current.set(element.id, graphics)
         }
 
+        const fillColor = hexToNumber(element.fillColor || '#9f7aea')
+        const strokeColor = isPipeStart ? 0x48bb78 : isHoveredForPipe ? 0x38b2ac : isSelected ? 0xff6b35 : hexToNumber(element.strokeColor || '#6b46c1')
+        const strokeWidth = isPipeStart || isHoveredForPipe ? 4 : isSelected ? 3 : (element.strokeWidth ?? 1)
+        const opacity = element.opacity ?? 1
+
         graphics.clear()
         const hw = element.width / 2
         const hh = element.height / 2
@@ -611,13 +771,8 @@ export function PixiCanvas({
         graphics.lineTo(hw, element.height)
         graphics.lineTo(0, hh)
         graphics.closePath()
-        graphics.fill({ color: 0x9f7aea })
-
-        if (isSelected) {
-          graphics.stroke({ width: 3, color: 0xff6b35 })
-        } else {
-          graphics.stroke({ width: 1, color: 0x6b46c1 })
-        }
+        graphics.fill({ color: fillColor, alpha: opacity })
+        graphics.stroke({ width: strokeWidth, color: strokeColor })
 
         graphics.position.set(element.x, element.y)
 
@@ -649,10 +804,12 @@ export function PixiCanvas({
           graphicsMapRef.current.set(element.id, graphics)
         }
 
+        const strokeColor = isPipeStart ? 0x48bb78 : isHoveredForPipe ? 0x38b2ac : isSelected ? 0xff6b35 : hexToNumber(element.strokeColor || '#4a5568')
+        const strokeWidth = isPipeStart || isHoveredForPipe ? (element.strokeWidth ?? 3) + 2 : isSelected ? (element.strokeWidth ?? 3) + 1 : (element.strokeWidth ?? 3)
+        const opacity = element.opacity ?? 1
+
         graphics.clear()
-        const strokeWidth = isSelected ? 4 : 3
-        const strokeColor = isSelected ? 0xff6b35 : 0x4a5568
-        graphics.setStrokeStyle({ width: strokeWidth, color: strokeColor })
+        graphics.setStrokeStyle({ width: strokeWidth, color: strokeColor, alpha: opacity })
         graphics.moveTo(0, element.height / 2)
         graphics.lineTo(element.width, element.height / 2)
         graphics.stroke()
@@ -691,24 +848,25 @@ export function PixiCanvas({
           graphicsMapRef.current.set(element.id, textContainer)
         }
 
+        const fillColor = hexToNumber(element.fillColor || '#ffffff')
+        const strokeColor = isPipeStart ? 0x48bb78 : isHoveredForPipe ? 0x38b2ac : isSelected ? 0xff6b35 : hexToNumber(element.strokeColor || '#cccccc')
+        const strokeWidth = isPipeStart || isHoveredForPipe ? 4 : isSelected ? 3 : (element.strokeWidth ?? 1)
+        const opacity = element.opacity ?? 1
+        const fontSize = element.fontSize ?? 16
+
         textContainer.removeChildren()
 
         const bg = new Graphics()
         bg.rect(0, 0, element.width, element.height)
-        bg.fill({ color: 0xffffff, alpha: 0.9 })
-
-        if (isSelected) {
-          bg.stroke({ width: 3, color: 0xff6b35 })
-        } else {
-          bg.stroke({ width: 1, color: 0xcccccc })
-        }
+        bg.fill({ color: fillColor, alpha: opacity * 0.9 })
+        bg.stroke({ width: strokeWidth, color: strokeColor })
 
         textContainer.addChild(bg)
 
         const text = new Text({
           text: element.text || '',
           style: {
-            fontSize: 16,
+            fontSize: fontSize,
             fill: 0x333333,
             fontFamily: 'Arial'
           },
@@ -722,6 +880,84 @@ export function PixiCanvas({
 
         textContainer.removeAllListeners('pointerdown')
         textContainer.on('pointerdown', (e: FederatedPointerEvent) => {
+          e.stopPropagation()
+          const addToSelection = e.ctrlKey || e.metaKey
+          onSelectRef.current(element.id, addToSelection)
+
+          if (!addToSelection) {
+            const worldPos = screenToWorld(e.globalX, e.globalY)
+            dragStateRef.current = {
+              isDragging: true,
+              elementId: element.id,
+              startX: element.x,
+              startY: element.y,
+              offsetX: worldPos.x - element.x,
+              offsetY: worldPos.y - element.y
+            }
+          }
+        })
+      } else if (element.type === 'pipe') {
+        let graphics = displayObj as Graphics | undefined
+        if (!graphics) {
+          graphics = new Graphics()
+          graphics.eventMode = 'static'
+          graphics.cursor = 'pointer'
+          parentContainer.addChild(graphics)
+          graphicsMapRef.current.set(element.id, graphics)
+        }
+
+        const strokeColor = isSelected ? 0xff6b35 : hexToNumber(element.fillColor || '#718096')
+        const pipeWidth = element.pipeWidth ?? 8
+        const opacity = element.opacity ?? 1
+        const points = element.points || []
+
+        graphics.clear()
+
+        if (points.length >= 2) {
+          // Draw pipe with rounded caps
+          graphics.setStrokeStyle({
+            width: pipeWidth,
+            color: strokeColor,
+            alpha: opacity,
+            cap: 'round',
+            join: 'round'
+          })
+          graphics.moveTo(points[0].x, points[0].y)
+          for (let i = 1; i < points.length; i++) {
+            graphics.lineTo(points[i].x, points[i].y)
+          }
+          graphics.stroke()
+
+          // Draw joints at each point
+          points.forEach((point) => {
+            graphics!.circle(point.x, point.y, pipeWidth / 2 + 1)
+            graphics!.fill({ color: strokeColor, alpha: opacity })
+          })
+
+          // Add hit area for selection
+          const hitGraphics = new Graphics()
+          hitGraphics.setStrokeStyle({ width: pipeWidth + 10, color: 0xffffff, alpha: 0.01 })
+          hitGraphics.moveTo(points[0].x, points[0].y)
+          for (let i = 1; i < points.length; i++) {
+            hitGraphics.lineTo(points[i].x, points[i].y)
+          }
+          hitGraphics.stroke()
+        }
+
+        // Selection highlight
+        if (isSelected && points.length >= 2) {
+          graphics.setStrokeStyle({ width: pipeWidth + 4, color: 0xff6b35, alpha: 0.3 })
+          graphics.moveTo(points[0].x, points[0].y)
+          for (let i = 1; i < points.length; i++) {
+            graphics.lineTo(points[i].x, points[i].y)
+          }
+          graphics.stroke()
+        }
+
+        graphics.position.set(element.x, element.y)
+
+        graphics.removeAllListeners('pointerdown')
+        graphics.on('pointerdown', (e: FederatedPointerEvent) => {
           e.stopPropagation()
           const addToSelection = e.ctrlKey || e.metaKey
           onSelectRef.current(element.id, addToSelection)
@@ -835,7 +1071,7 @@ export function PixiCanvas({
     elements.forEach((element) => {
       renderElement(element, container)
     })
-  }, [elements, selectedIds, isReady, screenToWorld])
+  }, [elements, selectedIds, isReady, screenToWorld, drawingMode, hoveredElementId, pipeStartElement])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()

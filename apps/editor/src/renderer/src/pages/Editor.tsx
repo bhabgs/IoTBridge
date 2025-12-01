@@ -1,14 +1,15 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { useEditorStore } from '../hooks/useEditorStore'
 import { PixiCanvas } from '../components/PixiCanvas'
 import { Toolbar } from '../components/Toolbar'
 import { PropertyPanel } from '../components/PropertyPanel'
 import { useI18n } from '../i18n'
-import type { ElementType } from '../types/element'
+import type { ElementType, Point } from '../types/element'
 
 export function Editor(): React.JSX.Element {
   const store = useEditorStore()
   const { t, isRTL } = useI18n()
+  const [drawingMode, setDrawingMode] = useState<'none' | 'pipe'>('none')
 
   const handleExport = useCallback(() => {
     const json = store.exportJSON()
@@ -39,6 +40,18 @@ export function Editor(): React.JSX.Element {
     [store]
   )
 
+  const handlePipeComplete = useCallback(
+    (startElementId: string, endElementId: string, points: Point[]) => {
+      store.addPipe(startElementId, endElementId, points)
+      setDrawingMode('none')
+    },
+    [store]
+  )
+
+  const handleToggleDrawingMode = useCallback((mode: 'none' | 'pipe') => {
+    setDrawingMode(mode)
+  }, [])
+
   useEffect(() => {
     window.addEventListener('editor-import', handleImportEvent)
     return () => {
@@ -57,6 +70,8 @@ export function Editor(): React.JSX.Element {
         hasSelection={store.selectedIds.size > 0}
         canGroup={store.canGroup()}
         canUngroup={store.canUngroup()}
+        drawingMode={drawingMode}
+        onToggleDrawingMode={handleToggleDrawingMode}
       />
       <div className="canvas-container">
         <PixiCanvas
@@ -66,6 +81,8 @@ export function Editor(): React.JSX.Element {
           onSelectMultiple={store.selectElements}
           onUpdateElement={store.updateElement}
           onDropElement={handleDrop}
+          drawingMode={drawingMode}
+          onPipeComplete={handlePipeComplete}
         />
       </div>
       <PropertyPanel elements={store.getSelectedElements()} onUpdate={store.updateElement} />
