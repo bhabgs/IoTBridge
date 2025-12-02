@@ -4,13 +4,21 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build:editor-core": "pnpm --filter editor-core build",
+    "dev:editor-core": "pnpm --filter editor-core dev",
+    "build:electron-editor": "pnpm --filter electron-editor build",
+    "dev:electron-editor": "pnpm --filter electron-editor dev"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.20.0",
   "dependencies": {
-    "electron-vite": "^4.0.1"
+    "electron-vite": "^4.0.1",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "electron": "^38.7.2",
+    "tsup": "^8.5.1"
   }
 }

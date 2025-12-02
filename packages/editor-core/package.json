@@ -1,0 +1,22 @@
+{
+  "name": "editor-core",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.20.0",
+  "dependencies": {
+    "pixi.js": "^8.14.3",
+    "types": "workspace:*",
+    "utils": "workspace:*"
+  },
+  "devDependencies": {
+    "electron": "^38.7.2"
+  }
+}
