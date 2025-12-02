@@ -1,0 +1,45 @@
+{
+  "common": {
+    "confirm": "تأكيد",
+    "cancel": "إلغاء",
+    "save": "حفظ",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "preview": "معاينة",
+    "export": "تصدير",
+    "import": "استيراد",
+    "settings": "الإعدادات",
+    "language": "اللغة",
+    "theme": "المظهر",
+    "light": "فاتح",
+    "dark": "داكن"
+  },
+  "editor": {
+    "title": "المحرر",
+    "toolbar": "شريط الأدوات",
+    "canvas": "اللوحة",
+    "properties": "لوحة الخصائص"
+  },
+  "menu": {
+    "file": "ملف",
+    "edit": "تعديل",
+    "view": "عرض",
+    "help": "مساعدة",
+    "home": "الرئيسية"
+  },
+  "home": {
+    "welcome": "مرحباً بك في المحرر",
+    "subtitle": "ابدأ بإنشاء مشروعك الأول، أو تابع تعديل المشاريع الموجودة",
+    "createProject": "إنشاء مشروع",
+    "manageProjects": "إدارة المشاريع",
+    "totalProjects": "إجمالي المشاريع",
+    "recentProjects": "المشاريع الأخيرة",
+    "totalElements": "إجمالي العناصر",
+    "lastModified": "آخر تعديل",
+    "quickActions": "إجراءات سريعة",
+    "createNewProject": "إنشاء مشروع جديد",
+    "openProject": "فتح مشروع",
+    "viewAll": "عرض الكل"
+  }
+}
+

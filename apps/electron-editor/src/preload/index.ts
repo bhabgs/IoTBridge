@@ -1,4 +1,4 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
@@ -20,3 +20,21 @@ if (process.contextIsolated) {
   // @ts-ignore (define in dts)
   window.api = api
 }
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  openNewWindow: (e) => {
+    ipcRenderer.invoke('open-new-window', e)
+  },
+  // 设置相关 API
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  setTheme: (theme: 'light' | 'dark') => ipcRenderer.invoke('set-theme', theme),
+  setLanguage: (language: 'zh-CN' | 'en-US' | 'ar') => ipcRenderer.invoke('set-language', language),
+  // 监听设置变化
+  onSettingsChanged: (callback: (settings: { theme?: string; language?: string }) => void) => {
+    ipcRenderer.on('settings-changed', (_, settings) => callback(settings))
+  },
+  // 移除监听器
+  removeSettingsListener: () => {
+    ipcRenderer.removeAllListeners('settings-changed')
+  }
+})

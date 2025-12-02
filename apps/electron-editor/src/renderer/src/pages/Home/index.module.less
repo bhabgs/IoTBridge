@@ -1,0 +1,63 @@
+.container {
+  padding: 24px;
+  background: var(--ant-color-bg-layout);
+  min-height: 100%;
+}
+
+.welcomeCard {
+  margin-bottom: 24px;
+  background: linear-gradient(
+    135deg,
+    var(--ant-color-primary-bg) 0%,
+    var(--ant-color-bg-container) 100%
+  );
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.statsRow {
+  margin-bottom: 24px;
+}
+
+.actionCard {
+  height: 100%;
+
+  :global(.ant-card-body) {
+    padding: 24px;
+  }
+}
+
+.recentCard {
+  height: 100%;
+
+  :global(.ant-card-body) {
+    padding: 24px;
+  }
+}
+
+.projectItem {
+  cursor: pointer;
+  transition: all 0.3s;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  :global(.ant-card-body) {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 16px;
+  }
+
+  .welcomeCard {
+    :global(.ant-row) {
+      flex-direction: column;
+      gap: 16px;
+    }
+  }
+}

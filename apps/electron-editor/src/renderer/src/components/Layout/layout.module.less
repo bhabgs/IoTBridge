@@ -1,0 +1,74 @@
+.layout {
+  position: relative;
+}
+
+.content {
+  overflow: auto;
+  padding: 24px;
+}
+
+.backButton {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  padding: 0px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  cursor: pointer;
+
+  // 使用 Antd 主题变量，自动适配深色/浅色主题
+  background: var(--ant-color-primary);
+  color: #fff;
+  border: 2px solid var(--ant-color-primary);
+
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s;
+
+  &:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    background: var(--ant-color-primary-hover);
+    border-color: var(--ant-color-primary-hover);
+  }
+
+  &:active {
+    transform: scale(0.95);
+    background: var(--ant-color-primary-active);
+    border-color: var(--ant-color-primary-active);
+  }
+
+  // 确保图标居中
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  // 图标样式 - 使用白色确保对比度
+  :global(.anticon) {
+    font-size: 18px;
+    color: #fff;
+  }
+
+  // 深色主题下的特殊处理 - 增强可见性
+  [data-theme='dark'] &,
+  .dark & {
+    background: var(--ant-color-primary);
+    border-color: var(--ant-color-primary);
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.6),
+      0 0 0 1px rgba(255, 255, 255, 0.1);
+
+    &:hover {
+      box-shadow:
+        0 6px 16px rgba(0, 0, 0, 0.8),
+        0 0 0 1px rgba(255, 255, 255, 0.2);
+      background: var(--ant-color-primary-hover);
+      border-color: var(--ant-color-primary-hover);
+    }
+
+    :global(.anticon) {
+      color: #fff;
+    }
+  }
+}

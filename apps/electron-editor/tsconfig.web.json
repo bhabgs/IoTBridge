@@ -8,12 +8,11 @@
   ],
   "compilerOptions": {
     "composite": true,
-    "jsx": "react-jsx",
+    "jsx": "react-jsx", // 如果你用 React
+    "jsxImportSource": "react",
     "baseUrl": ".",
     "paths": {
-      "@renderer/*": [
-        "src/renderer/src/*"
-      ]
+      "@renderer/*": ["src/renderer/src/*"]
     }
   }
 }

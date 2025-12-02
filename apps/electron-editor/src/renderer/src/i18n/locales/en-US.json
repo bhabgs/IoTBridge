@@ -1,0 +1,44 @@
+{
+  "common": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "preview": "Preview",
+    "export": "Export",
+    "import": "Import",
+    "settings": "Settings",
+    "language": "Language",
+    "theme": "Theme",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "editor": {
+    "title": "Editor",
+    "toolbar": "Toolbar",
+    "canvas": "Canvas",
+    "properties": "Properties Panel"
+  },
+  "menu": {
+    "file": "File",
+    "edit": "Edit",
+    "view": "View",
+    "help": "Help",
+    "home": "Home"
+  },
+  "home": {
+    "welcome": "Welcome to Editor",
+    "subtitle": "Start creating your first project, or continue editing existing projects",
+    "createProject": "Create Project",
+    "manageProjects": "Manage Projects",
+    "totalProjects": "Total Projects",
+    "recentProjects": "Recent Projects",
+    "totalElements": "Total Elements",
+    "lastModified": "Last Modified",
+    "quickActions": "Quick Actions",
+    "createNewProject": "Create New Project",
+    "openProject": "Open Project",
+    "viewAll": "View All"
+  }
+}

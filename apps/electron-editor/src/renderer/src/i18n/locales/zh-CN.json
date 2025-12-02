@@ -1,0 +1,45 @@
+{
+  "common": {
+    "confirm": "确认",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "preview": "预览",
+    "export": "导出",
+    "import": "导入",
+    "settings": "设置",
+    "language": "语言",
+    "theme": "主题",
+    "light": "浅色",
+    "dark": "深色"
+  },
+  "editor": {
+    "title": "编辑器",
+    "toolbar": "工具栏",
+    "canvas": "画布",
+    "properties": "属性面板"
+  },
+  "menu": {
+    "file": "文件",
+    "edit": "编辑",
+    "view": "视图",
+    "help": "帮助",
+    "home": "首页"
+  },
+  "home": {
+    "welcome": "欢迎使用编辑器",
+    "subtitle": "开始创建您的第一个项目，或继续编辑现有项目",
+    "createProject": "创建项目",
+    "manageProjects": "项目管理",
+    "totalProjects": "项目总数",
+    "recentProjects": "最近项目",
+    "totalElements": "元素总数",
+    "lastModified": "最后修改",
+    "quickActions": "快速操作",
+    "createNewProject": "创建新项目",
+    "openProject": "打开项目",
+    "viewAll": "查看全部"
+  }
+}
+
