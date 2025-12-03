@@ -12,7 +12,9 @@
     "language": "Language",
     "theme": "Theme",
     "light": "Light",
-    "dark": "Dark"
+    "dark": "Dark",
+    "undo": "Undo",
+    "redo": "Redo"
   },
   "editor": {
     "title": "Editor",

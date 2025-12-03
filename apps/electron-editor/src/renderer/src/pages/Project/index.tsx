@@ -6,9 +6,10 @@ import {
   FileTextOutlined
 } from '@ant-design/icons'
 import { Button, Typography, Popconfirm, message } from 'antd'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useState } from 'react'
 import styles from './detail.module.less'
+import CreateFlowModal from './CreateFlowModal'
 
 const { Title, Text } = Typography
 
@@ -22,6 +23,7 @@ interface ProcessFlow {
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
+  const [createModalOpen, setCreateModalOpen] = useState(false)
   const [processFlows, setProcessFlows] = useState<ProcessFlow[]>(
     Array.from({ length: 12 }).map((_, index) => ({
       id: index + 1,
@@ -32,7 +34,26 @@ export default function ProjectDetail() {
     }))
   )
 
-  const handleCreate = () => {}
+  const handleCreate = () => {
+    setCreateModalOpen(true)
+  }
+
+  const handleCreateOk = (values: { name: string; description: string }) => {
+    const newFlow: ProcessFlow = {
+      id: Date.now(),
+      name: values.name,
+      description: values.description,
+      updatedAt: new Date().toISOString().split('T')[0]
+    }
+    setProcessFlows((prev) => [newFlow, ...prev])
+    setCreateModalOpen(false)
+    // 可选：创建后自动打开编辑器
+    // window.electronAPI.openWindow({ path: `/#/editor/${id}/flow/${newFlow.id}` })
+  }
+
+  const handleCreateCancel = () => {
+    setCreateModalOpen(false)
+  }
 
   const handleDelete = (flowId: number, e?: React.MouseEvent) => {
     e?.stopPropagation()
@@ -122,6 +143,8 @@ export default function ProjectDetail() {
           </div>
         ))}
       </div>
+
+      <CreateFlowModal open={createModalOpen} onOk={handleCreateOk} onCancel={handleCreateCancel} />
     </div>
   )
 }

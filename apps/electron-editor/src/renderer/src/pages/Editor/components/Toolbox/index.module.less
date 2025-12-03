@@ -1,0 +1,37 @@
+.toolbox {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.toolboxHeader {
+  padding: 16px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--ant-color-border);
+}
+
+.toolboxTitle {
+  margin: 0 !important;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ant-color-text);
+}
+
+.toolboxContent {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.toolButton {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  
+  :global(.anticon) {
+    margin-right: 8px;
+  }
+}
+

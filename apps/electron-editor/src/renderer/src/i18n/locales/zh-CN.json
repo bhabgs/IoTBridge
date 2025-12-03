@@ -12,7 +12,9 @@
     "language": "语言",
     "theme": "主题",
     "light": "浅色",
-    "dark": "深色"
+    "dark": "深色",
+    "undo": "撤销",
+    "redo": "重做"
   },
   "editor": {
     "title": "编辑器",

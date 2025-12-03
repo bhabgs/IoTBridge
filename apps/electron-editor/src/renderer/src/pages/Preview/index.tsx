@@ -1,35 +1,21 @@
-import { Typography, Card, Space } from 'antd'
-import { useTranslation } from 'react-i18next'
-
-const { Title, Paragraph } = Typography
+import { useEffect } from 'react'
+import styles from './index.module.less'
 
 export default function Preview() {
-  const { t } = useTranslation()
-
+  useEffect(() => {
+    window.document.title = '工艺流程图预览 - Flow Design'
+    setTimeout(() => {
+      // 隐藏预览提示
+      const previewTip = document.querySelector(`.${styles.previewTip}`)
+      if (previewTip) {
+        ;(previewTip as HTMLElement).style.display = 'none'
+      }
+    }, 5000)
+  }, [])
   return (
-    <div style={{ padding: '24px', height: '100%' }}>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <Title level={2}>{t('common.preview')}</Title>
-
-        <Card>
-          <div
-            style={{
-              minHeight: '500px',
-              border: '2px dashed #d9d9d9',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'var(--ant-color-bg-container)'
-            }}
-          >
-            <Paragraph type="secondary" style={{ fontSize: '16px' }}>
-              {t('editor.canvas')}
-            </Paragraph>
-          </div>
-        </Card>
-      </Space>
-    </div>
+    <>
+      <div className={styles.preview}></div>
+      <div className={styles.previewTip}>预览模式，请使用鼠标拖动进行浏览</div>
+    </>
   )
 }
-

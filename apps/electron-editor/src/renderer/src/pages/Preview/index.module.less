@@ -1,0 +1,28 @@
+.preview {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  background-color: #f0f2f5;
+}
+
+.previewTip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: #999;
+  font-size: 14px;
+  // 闪烁最后隐藏
+  animation: blink 1.5s infinite;
+}
+@keyframes blink {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
