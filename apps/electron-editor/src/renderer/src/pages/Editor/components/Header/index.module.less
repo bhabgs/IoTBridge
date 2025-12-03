@@ -2,8 +2,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 16px;
   gap: 16px;
+  border-bottom: 1px solid var(--ant-color-border);
+  background: var(--ant-color-bg-container);
 }
 
 .headerLeft {
@@ -13,14 +15,32 @@
 .title {
   margin: 0 !important;
   color: var(--ant-color-text);
+  font-size: 16px;
 }
 
 .headerCenter {
   flex: 1;
   display: flex;
   justify-content: center;
+  align-items: center;
 }
 
 .headerRight {
   flex-shrink: 0;
+}
+
+.circleIcon {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.polygonIcon {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid currentColor;
+  clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+  display: inline-block;
 }

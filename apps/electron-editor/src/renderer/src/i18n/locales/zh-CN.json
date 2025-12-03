@@ -14,13 +14,33 @@
     "light": "浅色",
     "dark": "深色",
     "undo": "撤销",
-    "redo": "重做"
+    "redo": "重做",
+    "copy": "复制"
   },
   "editor": {
     "title": "编辑器",
     "toolbar": "工具栏",
     "canvas": "画布",
-    "properties": "属性面板"
+    "properties": "属性面板",
+    "shapes": {
+      "rect": "矩形",
+      "circle": "圆形",
+      "polygon": "多边形",
+      "arrow": "箭头",
+      "line": "直线",
+      "text": "文本"
+    },
+    "components": "组件",
+    "tree": {
+      "label": "树形结构",
+      "empty": "画布为空，请先添加元素"
+    },
+    "componentGroups": {
+      "industrial": "工业设备",
+      "aerospace": "航天设备",
+      "automation": "自动化设备",
+      "sensors": "传感器"
+    }
   },
   "menu": {
     "file": "文件",
@@ -44,4 +64,3 @@
     "viewAll": "查看全部"
   }
 }
-

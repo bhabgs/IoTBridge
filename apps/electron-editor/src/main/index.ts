@@ -74,27 +74,26 @@ app.whenReady().then(() => {
     return getSettings()
   })
 
+  // 向所有窗口广播设置变化
+  const broadcastSettings = (settings: { theme?: string; language?: string }) => {
+    BrowserWindow.getAllWindows().forEach((window) => {
+      if (!window.isDestroyed()) {
+        window.webContents.send('settings-changed', settings)
+        // 更新菜单状态
+        createMenu(window)
+      }
+    })
+  }
+
   ipcMain.handle('set-theme', (_, theme: 'light' | 'dark') => {
     setSetting('theme', theme)
-    if (mainWindow) {
-      mainWindow.webContents.send('settings-changed', { theme })
-    }
-    // 更新菜单状态
-    if (mainWindow) {
-      createMenu(mainWindow)
-    }
+    broadcastSettings({ theme })
     return true
   })
 
   ipcMain.handle('set-language', (_, language: 'zh-CN' | 'en-US' | 'ar') => {
     setSetting('language', language)
-    if (mainWindow) {
-      mainWindow.webContents.send('settings-changed', { language })
-    }
-    // 更新菜单状态
-    if (mainWindow) {
-      createMenu(mainWindow)
-    }
+    broadcastSettings({ language })
     return true
   })
 

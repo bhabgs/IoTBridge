@@ -14,13 +14,33 @@
     "light": "Light",
     "dark": "Dark",
     "undo": "Undo",
-    "redo": "Redo"
+    "redo": "Redo",
+    "copy": "Copy"
   },
   "editor": {
     "title": "Editor",
     "toolbar": "Toolbar",
     "canvas": "Canvas",
-    "properties": "Properties Panel"
+    "properties": "Properties Panel",
+    "shapes": {
+      "rect": "Rectangle",
+      "circle": "Circle",
+      "polygon": "Polygon",
+      "arrow": "Arrow",
+      "line": "Line",
+      "text": "Text"
+    },
+    "components": "Components",
+    "tree": {
+      "label": "Tree Structure",
+      "empty": "Canvas is empty, please add elements first"
+    },
+    "componentGroups": {
+      "industrial": "Industrial Equipment",
+      "aerospace": "Aerospace Equipment",
+      "automation": "Automation Equipment",
+      "sensors": "Sensors"
+    }
   },
   "menu": {
     "file": "File",

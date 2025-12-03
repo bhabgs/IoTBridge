@@ -14,13 +14,33 @@
     "light": "فاتح",
     "dark": "داكن",
     "undo": "تراجع",
-    "redo": "إعادة"
+    "redo": "إعادة",
+    "copy": "نسخ"
   },
   "editor": {
     "title": "المحرر",
     "toolbar": "شريط الأدوات",
     "canvas": "اللوحة",
-    "properties": "لوحة الخصائص"
+    "properties": "لوحة الخصائص",
+    "shapes": {
+      "rect": "مستطيل",
+      "circle": "دائرة",
+      "polygon": "مضلع",
+      "arrow": "سهم",
+      "line": "خط",
+      "text": "نص"
+    },
+    "components": "المكونات",
+    "tree": {
+      "label": "البنية الشجرية",
+      "empty": "اللوحة فارغة، يرجى إضافة العناصر أولاً"
+    },
+    "componentGroups": {
+      "industrial": "المعدات الصناعية",
+      "aerospace": "معدات الفضاء",
+      "automation": "معدات الأتمتة",
+      "sensors": "أجهزة الاستشعار"
+    }
   },
   "menu": {
     "file": "ملف",

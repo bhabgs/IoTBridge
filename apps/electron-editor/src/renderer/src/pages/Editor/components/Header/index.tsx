@@ -5,7 +5,11 @@ import {
   RedoOutlined,
   ExportOutlined,
   ImportOutlined,
-  FullscreenOutlined
+  FullscreenOutlined,
+  BorderOutlined,
+  FileTextOutlined,
+  LineOutlined,
+  ArrowRightOutlined
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import styles from './index.module.less'
@@ -15,6 +19,44 @@ const { Title } = Typography
 const Header = ({ className }: { className?: string }) => {
   const { t } = useTranslation()
 
+  const shapes = [
+    {
+      key: 'rect',
+      icon: <BorderOutlined />,
+      title: t('editor.shapes.rect')
+    },
+    {
+      key: 'circle',
+      icon: <div className={styles.circleIcon} />,
+      title: t('editor.shapes.circle')
+    },
+    {
+      key: 'polygon',
+      icon: <div className={styles.polygonIcon} />,
+      title: t('editor.shapes.polygon')
+    },
+    {
+      key: 'arrow',
+      icon: <ArrowRightOutlined />,
+      title: t('editor.shapes.arrow')
+    },
+    {
+      key: 'line',
+      icon: <LineOutlined />,
+      title: t('editor.shapes.line')
+    },
+    {
+      key: 'text',
+      icon: <FileTextOutlined />,
+      title: t('editor.shapes.text')
+    }
+  ]
+
+  const handleShapeClick = (key: string) => {
+    console.log('Add shape:', key)
+    // TODO: 实现添加图形逻辑
+  }
+
   return (
     <div className={`${styles.header} ${className || ''}`}>
       <div className={styles.headerLeft}>
@@ -23,9 +65,22 @@ const Header = ({ className }: { className?: string }) => {
         </Title>
       </div>
       <div className={styles.headerCenter}>
-        <Space>
-          <Button icon={<UndoOutlined />} size="small" title={t('common.undo')} />
-          <Button icon={<RedoOutlined />} size="small" title={t('common.redo')} />
+        <Space size="small" split={<Divider type="vertical" />}>
+          <Space size="small">
+            <Button icon={<UndoOutlined />} size="small" title={t('common.undo')} />
+            <Button icon={<RedoOutlined />} size="small" title={t('common.redo')} />
+          </Space>
+          <Space size="small">
+            {shapes.map((shape) => (
+              <Button
+                key={shape.key}
+                icon={shape.icon}
+                size="small"
+                title={shape.title}
+                onClick={() => handleShapeClick(shape.key)}
+              />
+            ))}
+          </Space>
         </Space>
       </div>
       <div className={styles.headerRight}>
