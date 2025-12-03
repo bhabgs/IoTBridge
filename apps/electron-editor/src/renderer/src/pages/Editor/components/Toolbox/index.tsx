@@ -1,5 +1,5 @@
-import { Tabs, Tree, Typography, Empty, Button, Dropdown } from 'antd'
-import type { TreeDataNode, MenuProps } from 'antd'
+import { Tabs, Tree, Empty, Button, Dropdown, Collapse } from 'antd'
+import type { TreeDataNode, MenuProps, CollapseProps } from 'antd'
 import {
   AppstoreOutlined,
   ApartmentOutlined,
@@ -18,10 +18,9 @@ import {
   FileTextOutlined
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
+import { useState } from 'react'
 import { useEditor, CanvasElement } from '../../context/EditorContext'
 import styles from './index.module.less'
-
-const { Title } = Typography
 
 interface ComponentItem {
   key: string
@@ -177,35 +176,81 @@ const Toolbox = ({ className }: { className?: string }) => {
 
   const treeData: TreeDataNode[] = convertElementsToTreeData(elements)
 
+  // 默认展开所有分组
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(
+    componentGroups.map((group) => group.key)
+  )
+
+  // 处理拖拽开始
+  const handleDragStart = (
+    e: React.DragEvent,
+    groupKey: string,
+    itemKey: string,
+    label: string
+  ) => {
+    const dragData = {
+      type: 'component',
+      groupKey,
+      itemKey,
+      label,
+      componentType: `${groupKey}-${itemKey}`
+    }
+    e.dataTransfer.setData('application/json', JSON.stringify(dragData))
+    e.dataTransfer.effectAllowed = 'copy'
+    // 设置拖拽时的视觉效果
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.5'
+    }
+  }
+
+  // 处理拖拽结束
+  const handleDragEnd = (e: React.DragEvent) => {
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1'
+    }
+  }
+
   // 组件列表渲染
   const renderComponents = () => {
+    const collapseItems: CollapseProps['items'] = componentGroups.map((group) => ({
+      key: group.key,
+      label: (
+        <div className={styles.collapseHeader}>
+          {group.icon}
+          <span className={styles.collapseTitle}>{group.label}</span>
+        </div>
+      ),
+      children: (
+        <div className={styles.groupItems}>
+          {group.items.map((item) => (
+            <div
+              key={item.key}
+              className={styles.componentItem}
+              draggable
+              onDragStart={(e) => handleDragStart(e, group.key, item.key, item.label)}
+              onDragEnd={handleDragEnd}
+              onClick={() => handleComponentClick(`${group.key}-${item.key}`, item.label)}
+              title={item.label}
+            >
+              <div className={styles.componentIcon}>
+                <DatabaseOutlined />
+              </div>
+              <div className={styles.componentLabel}>{item.label}</div>
+            </div>
+          ))}
+        </div>
+      )
+    }))
+
     return (
       <div className={styles.componentsContent}>
-        {componentGroups.map((group) => (
-          <div key={group.key} className={styles.componentGroup}>
-            <div className={styles.groupHeader}>
-              {group.icon}
-              <Title level={5} className={styles.groupTitle}>
-                {group.label}
-              </Title>
-            </div>
-            <div className={styles.groupItems}>
-              {group.items.map((item) => (
-                <div
-                  key={item.key}
-                  className={styles.componentItem}
-                  onClick={() => handleComponentClick(`${group.key}-${item.key}`, item.label)}
-                  title={item.label}
-                >
-                  <div className={styles.componentIcon}>
-                    <DatabaseOutlined />
-                  </div>
-                  <div className={styles.componentLabel}>{item.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+        <Collapse
+          activeKey={expandedGroups}
+          onChange={(keys) => setExpandedGroups(keys as string[])}
+          items={collapseItems}
+          className={styles.componentCollapse}
+          ghost
+        />
       </div>
     )
   }

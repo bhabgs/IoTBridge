@@ -31,20 +31,31 @@
   padding: 12px;
 }
 
-.componentGroup {
-  margin-bottom: 24px;
+.componentCollapse {
+  background: transparent;
 
-  &:last-child {
-    margin-bottom: 0;
+  :global(.ant-collapse-item) {
+    border-bottom: 1px solid var(--ant-color-border);
+    margin-bottom: 8px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  :global(.ant-collapse-header) {
+    padding: 12px 16px !important;
+    align-items: center;
+  }
+
+  :global(.ant-collapse-content-box) {
+    padding: 12px 16px !important;
   }
 }
 
-.groupHeader {
+.collapseHeader {
   display: flex;
   align-items: center;
-  margin-bottom: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--ant-color-border);
 
   :global(.anticon) {
     font-size: 16px;
@@ -53,8 +64,7 @@
   }
 }
 
-.groupTitle {
-  margin: 0 !important;
+.collapseTitle {
   font-size: 14px;
   font-weight: 600;
   color: var(--ant-color-text);
@@ -74,9 +84,10 @@
   padding: 12px 8px;
   border: 1px solid var(--ant-color-border);
   border-radius: 4px;
-  cursor: pointer;
+  cursor: grab;
   transition: all 0.2s;
   background: var(--ant-color-bg-container);
+  user-select: none;
 
   &:hover {
     border-color: var(--ant-color-primary);
@@ -86,7 +97,12 @@
   }
 
   &:active {
+    cursor: grabbing;
     transform: translateY(0);
+  }
+
+  &:focus {
+    outline: none;
   }
 }
 

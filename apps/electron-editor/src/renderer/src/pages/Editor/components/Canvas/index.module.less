@@ -10,6 +10,11 @@
   background-position:
     0 0,
     0 0;
+  transition: background-color 0.2s;
+
+  &.draggingOver {
+    background-color: var(--ant-color-primary-bg);
+  }
 }
 
 .canvasContainer {
@@ -51,4 +56,47 @@
 
 .placeholderHint {
   font-size: 14px;
+}
+
+.canvasContent {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 800px;
+  min-height: 600px;
+}
+
+.canvasElement {
+  position: absolute;
+  border: 2px solid var(--ant-color-border);
+  border-radius: 4px;
+  background: var(--ant-color-bg-container);
+  cursor: move;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+  &:hover {
+    border-color: var(--ant-color-primary);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.elementContent {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--ant-color-text);
+  word-break: break-word;
+  text-align: center;
+
+  :global(.anticon) {
+    font-size: 24px;
+    color: var(--ant-color-primary);
+  }
 }
