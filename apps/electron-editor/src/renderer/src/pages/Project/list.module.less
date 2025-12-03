@@ -1,0 +1,174 @@
+.projectList {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.header {
+  padding: 24px;
+  flex-shrink: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 8px;
+  padding-top: 8px;
+  // 自定义滚动条样式
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: var(--ant-color-bg-layout);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--ant-color-border);
+    border-radius: 4px;
+
+    &:hover {
+      background: var(--ant-color-text-secondary);
+    }
+  }
+}
+
+.projectCard {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  background: var(--ant-color-bg-container);
+  border: 1px solid var(--ant-color-border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s;
+
+  &:hover {
+    border-color: var(--ant-color-primary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-4px);
+  }
+
+  &:active {
+    transform: translateY(-2px);
+  }
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.projectIcon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ant-color-primary-bg);
+  border-radius: 12px;
+  font-size: 28px;
+  color: var(--ant-color-primary);
+  flex-shrink: 0;
+}
+
+.moreButton {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.projectCard:hover .moreButton {
+  opacity: 1;
+}
+
+.cardContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.projectName {
+  margin: 0 !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+}
+
+.projectDescription {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.6;
+  margin: 0;
+  flex: 1;
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ant-color-border);
+  flex-shrink: 0;
+}
+
+.projectMeta {
+  font-size: 12px;
+  margin: 0;
+  flex: 1;
+}
+
+// 响应式设计
+@media (max-width: 768px) {
+  .projectList {
+    padding: 16px;
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+
+  .projectCard {
+    padding: 16px;
+    min-height: 180px;
+  }
+
+  .projectIcon {
+    width: 48px;
+    height: 48px;
+    font-size: 24px;
+  }
+
+  .cardFooter {
+    flex-direction: column;
+    align-items: stretch;
+
+    :global(.ant-btn) {
+      width: 100%;
+    }
+  }
+
+  .moreButton {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

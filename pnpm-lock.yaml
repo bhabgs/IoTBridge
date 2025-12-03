@@ -54,6 +54,9 @@ importers:
       react-router-dom:
         specifier: ^7.9.6
         version: 7.9.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      utils:
+        specifier: workspace:*
+        version: link:../../libs/utils
     devDependencies:
       '@electron-toolkit/eslint-config-prettier':
         specifier: ^3.0.0

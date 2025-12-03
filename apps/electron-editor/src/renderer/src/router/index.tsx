@@ -16,14 +16,7 @@ export const Routers = Router([
         index: true,
         element: <Home />
       },
-      {
-        path: 'editor/:id',
-        element: <Editor />
-      },
-      {
-        path: 'preview/:id',
-        element: <Preview />
-      },
+
       {
         path: 'project',
         element: <ProjectList />
@@ -37,6 +30,14 @@ export const Routers = Router([
         element: <Settings />
       }
     ]
+  },
+  {
+    path: 'editor/:id',
+    element: <Editor />
+  },
+  {
+    path: 'preview/:id',
+    element: <Preview />
   }
 ])
 

@@ -22,8 +22,8 @@ if (process.contextIsolated) {
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  openNewWindow: (e) => {
-    ipcRenderer.invoke('open-new-window', e)
+  openWindow: (e) => {
+    ipcRenderer.invoke('open-window', e)
   },
   // 设置相关 API
   getSettings: () => ipcRenderer.invoke('get-settings'),

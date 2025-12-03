@@ -4,14 +4,15 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { createMenu } from './menu'
 import { getSettings, setSetting } from './store'
+import { ipcEvent } from './ipcEvent'
 
 let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
   // Create the browser window.
   mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: 1920,
+    height: 1080,
     show: false,
     autoHideMenuBar: false, // 显示菜单栏
     ...(process.platform === 'linux' ? { icon } : {}),
@@ -117,21 +118,4 @@ app.on('window-all-closed', () => {
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
-
-// 打开新窗口
-ipcMain.handle('open-new-window', (_, path?: string) => {
-  console.log(path)
-  const win = new BrowserWindow({
-    width: 800,
-    height: 600,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js')
-    }
-  })
-
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    win.loadURL(process.env['ELECTRON_RENDERER_URL'] + (path || ''))
-  } else {
-    win.loadFile(join(__dirname, '../renderer/index.html') + (path || ''))
-  }
-})
+ipcEvent()

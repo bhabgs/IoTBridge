@@ -11,7 +11,7 @@ const LayoutBody = () => {
   const showBackButton = location.pathname !== '/'
 
   return (
-    <Layout className={styles.layout} style={{ minHeight: '100vh' }}>
+    <Layout className={styles.layout} style={{ height: '100vh' }}>
       {/* 悬浮返回按钮 */}
       {showBackButton && (
         <div className={styles.backButton} onClick={() => navigate(-1)}>
