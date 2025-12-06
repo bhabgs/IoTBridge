@@ -18,7 +18,12 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      // 支持 PixiJS WebGL
+      webgl: true,
+      // 启用硬件加速以提升 PixiJS 性能
+      enableWebSQL: false,
+      offscreen: false
     }
   })
 

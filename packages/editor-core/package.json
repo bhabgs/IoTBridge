@@ -2,7 +2,7 @@
   "name": "editor-core",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.mjs",
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch"
@@ -12,6 +12,7 @@
   "license": "ISC",
   "packageManager": "pnpm@10.20.0",
   "dependencies": {
+    "@pixi/unsafe-eval": "^7.4.3",
     "pixi.js": "^8.14.3",
     "types": "workspace:*",
     "utils": "workspace:*"

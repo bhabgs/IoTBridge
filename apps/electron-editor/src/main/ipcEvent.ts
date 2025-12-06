@@ -22,7 +22,16 @@ export const ipcEvent = () => {
       autoHideMenuBar: false, // 显示菜单栏
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
-        sandbox: false
+        sandbox: false,
+        // 支持 PixiJS WebGL - 必须启用
+        webgl: true,
+        // 启用硬件加速以提升 PixiJS 性能
+        enableWebSQL: false,
+        offscreen: false,
+        // 允许在渲染进程中使用 Node.js（如果需要）
+        nodeIntegration: false,
+        // 上下文隔离设置 - 根据 preload 文件的需要
+        contextIsolation: false
       }
     })
 

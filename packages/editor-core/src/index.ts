@@ -1,30 +1,29 @@
 import { Application } from "pixi.js";
+import "@pixi/unsafe-eval";
 import { getElement } from "utils";
 import { EditorCoreOptions } from "./types";
 import { Cpd } from "types";
 
-const app = new Application();
-
 class EditorCore {
   private _options: EditorCoreOptions;
   private _container: HTMLElement;
+  private _app: Application = new Application();
   constructor(options: EditorCoreOptions) {
     this._options = options;
     this._container = getElement(options.container);
-    this._init();
   }
   // 初始化
-  private _init() {
+  public async init() {
     const { container, data, options } = this._options;
     // 获取container的宽高
     const { width, height } = this._container.getBoundingClientRect();
     // 创建pixi.js的application
-    app.init({
+    await this._app.init({
       width,
       height,
       background: "#1099bb",
     });
-    this._container.appendChild(app.canvas);
+    this._container.appendChild(this._app.canvas);
     if (!options?.mode || options?.mode === "edit") {
       this._editMode(data);
     } else {
@@ -56,4 +55,6 @@ class EditorCore {
     };
   }
 }
+export { EditorCore };
+
 export default EditorCore;

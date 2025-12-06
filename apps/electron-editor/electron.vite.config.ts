@@ -5,12 +5,16 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    optimizeDeps: {
+      exclude: ['pixi.js']
+    },
     resolve: {
       alias: {
         utils: resolve(__dirname, '../../libs/utils/dist/index.mjs')
       }
     }
   },
+
   preload: {
     plugins: [externalizeDepsPlugin()]
   },
@@ -20,6 +24,9 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
-    plugins: [react()]
+    plugins: [react()],
+    optimizeDeps: {
+      include: ['pixi.js']
+    }
   }
 })
