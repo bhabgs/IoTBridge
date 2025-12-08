@@ -1,8 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-// 在 Electron 环境中需要先导入 unsafe-eval 以支持 eval
-// 必须在导入 pixi.js 之前导入
-// import '@pixi/unsafe-eval'
-import { EditorCore } from 'editor-core'
 import styles from './index.module.less'
 
 const Canvas = ({ className }: { className?: string }) => {
@@ -13,13 +9,7 @@ const Canvas = ({ className }: { className?: string }) => {
   useEffect(() => {
     if (!canvasRef.current) return
 
-    const initEditorCore = async () => {
-      const editorCore = new EditorCore({
-        container: canvasRef.current as HTMLElement
-      })
-      await editorCore.init()
-      editorCore.exportJson()
-    }
+    const initEditorCore = async () => {}
 
     initEditorCore()
 
