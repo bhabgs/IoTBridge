@@ -319,7 +319,13 @@ const Toolbox = ({ className }: { className?: string }) => {
 
   return (
     <div className={`${styles.toolbox} ${className || ''}`}>
-      <Tabs defaultActiveKey="components" items={tabItems} className={styles.tabs} size="small" />
+      <Tabs
+        defaultActiveKey="components"
+        centered
+        items={tabItems}
+        className={styles.tabs}
+        size="small"
+      />
     </div>
   )
 }

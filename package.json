@@ -7,7 +7,15 @@
     "build:editor-core": "pnpm --filter editor-core build",
     "dev:editor-core": "pnpm --filter editor-core dev",
     "build:electron-editor": "pnpm --filter electron-editor build",
-    "dev:electron-editor": "pnpm --filter electron-editor dev"
+    "dev:electron-editor": "pnpm --filter electron-editor dev",
+    "build:industrial-sdk": "pnpm run build:industrial-sdk-core:types && pnpm run build:industrial-sdk-pixi && pnpm run build:industrial-sdk-three && pnpm run build:industrial-sdk-core",
+    "build:industrial-sdk-core:types": "pnpm --filter industrial-sdk-core build:types",
+    "build:industrial-sdk-core": "pnpm --filter industrial-sdk-core build",
+    "dev:industrial-sdk-core": "pnpm --filter industrial-sdk-core dev",
+    "build:industrial-sdk-pixi": "pnpm --filter industrial-sdk-pixi build",
+    "dev:industrial-sdk-pixi": "pnpm --filter industrial-sdk-pixi dev",
+    "build:industrial-sdk-three": "pnpm --filter industrial-sdk-three build",
+    "dev:industrial-sdk-three": "pnpm --filter industrial-sdk-three dev"
   },
   "keywords": [],
   "author": "",

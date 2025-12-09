@@ -1,0 +1,46 @@
+{
+  "name": "industrial-sdk-core",
+  "version": "1.0.0",
+  "description": "Industrial configuration SDK core - Logic layer, event system, and renderer management",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "build:types": "BUILD_TYPES_ONLY=true tsup",
+    "dev": "tsup --watch"
+  },
+  "keywords": [
+    "industrial",
+    "configuration",
+    "sdk",
+    "2d",
+    "3d",
+    "pixi",
+    "threejs"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "industrial-sdk-pixi": "workspace:*",
+    "industrial-sdk-three": "workspace:*",
+    "pixi.js": "^8.6.6",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.170.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {},
+  "peerDependenciesMeta": {}
+}

@@ -26,7 +26,7 @@ export default defineConfig({
     },
     plugins: [react()],
     optimizeDeps: {
-      include: ['pixi.js']
+      include: ['pixi.js', 'three', 'industrial-sdk-core']
     }
   }
 })

@@ -1,54 +1,46 @@
-import { useEffect, useRef, useState } from 'react'
 import styles from './index.module.less'
 
-const Canvas = ({ className }: { className?: string }) => {
-  const canvasRef = useRef<HTMLDivElement>(null)
-  const [isDraggingOver, setIsDraggingOver] = useState(false)
+/** Canvas 组件属性 */
+interface CanvasProps {
+  className?: string
+  /** 初始渲染模式 */
+  defaultMode?: '2D' | '3D'
+  /** 初始运行模式 */
+  defaultRunMode?: 'edit' | 'preview' | 'production'
+}
 
-  // 初始化 EditorCore
-  useEffect(() => {
-    if (!canvasRef.current) return
+/** 容器 ID */
+const CONTAINER_ID = 'industrial-canvas-container'
 
-    const initEditorCore = async () => {}
-
-    initEditorCore()
-
-    // 清理函数
-    return () => {}
-  }, [])
-
-  // 处理拖拽进入
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer.dropEffect = 'copy'
-    setIsDraggingOver(true)
-  }
-
-  // 处理拖拽离开
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDraggingOver(false)
-  }
-
-  // 处理拖放
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDraggingOver(false)
-    const dragData = JSON.parse(e.dataTransfer.getData('application/json'))
-    console.log(dragData)
-  }
-
+const Canvas = ({ className, defaultMode = '2D', defaultRunMode = 'edit' }: CanvasProps) => {
   return (
-    <div
-      ref={canvasRef}
-      className={`${styles.canvas} ${className || ''} ${isDraggingOver ? styles.draggingOver : ''}`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    />
+    <div className={styles.canvas}>
+      {/* SDK 渲染容器 */}
+      <div
+        id={CONTAINER_ID}
+        style={{
+          width: '100%',
+          height: '100%',
+          position: 'absolute',
+          top: 0,
+          left: 0
+        }}
+      />
+
+      {/* 初始化提示 */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          color: '#666',
+          fontSize: 14
+        }}
+      >
+        正在初始化画布...
+      </div>
+    </div>
   )
 }
 
