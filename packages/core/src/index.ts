@@ -4,6 +4,12 @@ import { SceneModel } from "./types";
 import { Pixi2D } from "./2d";
 import { Three3D } from "./3d";
 
+// 导出选择和编辑相关类型
+export { Selector, SelectionChangeCallback, SelectorOptions } from "./3d/selector";
+export { Transformer, TransformMode, TransformSpace, TransformChangeEvent, TransformerOptions } from "./3d/transformer";
+export { Three3D } from "./3d";
+export { Pixi2D } from "./2d";
+
 class IndustrialConfigSDK {
   sceneModel: SceneModel = {
     id: "1",
