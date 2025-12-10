@@ -39,6 +39,9 @@ importers:
       antd:
         specifier: ^6.0.0
         version: 6.0.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      core:
+        specifier: workspace:*
+        version: link:../../packages/core
       electron-store:
         specifier: ^11.0.2
         version: 11.0.2
@@ -48,9 +51,6 @@ importers:
       i18next-browser-languagedetector:
         specifier: ^8.2.0
         version: 8.2.0
-      industrial-sdk-core:
-        specifier: workspace:*
-        version: link:../../packages/industrial-sdk-core
       less:
         specifier: ^4.4.2
         version: 4.4.2
@@ -138,46 +138,11 @@ importers:
 
   libs/utils: {}
 
-  packages/industrial-sdk-core:
-    dependencies:
-      industrial-sdk-pixi:
-        specifier: workspace:*
-        version: link:../industrial-sdk-pixi
-      industrial-sdk-three:
-        specifier: workspace:*
-        version: link:../industrial-sdk-three
-      pixi.js:
-        specifier: ^8.6.6
-        version: 8.14.3
-      three:
-        specifier: ^0.170.0
-        version: 0.170.0
-    devDependencies:
-      '@types/three':
-        specifier: ^0.170.0
-        version: 0.170.0
-      tsup:
-        specifier: ^8.5.1
-        version: 8.5.1(postcss@8.5.6)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
-  packages/industrial-sdk-pixi:
+  packages/core:
     dependencies:
       pixi.js:
         specifier: ^8.6.6
         version: 8.14.3
-    devDependencies:
-      tsup:
-        specifier: ^8.5.1
-        version: 8.5.1(postcss@8.5.6)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
-  packages/industrial-sdk-three:
-    dependencies:
       three:
         specifier: ^0.170.0
         version: 0.170.0

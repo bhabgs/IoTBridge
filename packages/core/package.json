@@ -1,5 +1,5 @@
 {
-  "name": "industrial-sdk-core",
+  "name": "core",
   "version": "1.0.0",
   "description": "Industrial configuration SDK core - Logic layer, event system, and renderer management",
   "type": "module",
@@ -31,8 +31,6 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "industrial-sdk-pixi": "workspace:*",
-    "industrial-sdk-three": "workspace:*",
     "pixi.js": "^8.6.6",
     "three": "^0.170.0"
   },

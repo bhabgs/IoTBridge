@@ -1,4 +1,6 @@
+import core from 'core'
 import styles from './index.module.less'
+import { useEffect, useRef } from 'react'
 
 /** Canvas 组件属性 */
 interface CanvasProps {
@@ -13,11 +15,21 @@ interface CanvasProps {
 const CONTAINER_ID = 'industrial-canvas-container'
 
 const Canvas = ({ className, defaultMode = '2D', defaultRunMode = 'edit' }: CanvasProps) => {
+  const containerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (containerRef.current) {
+      const sdk = new core({
+        container: containerRef.current
+      })
+      console.log(sdk)
+    }
+  }, [containerRef.current])
   return (
     <div className={styles.canvas}>
       {/* SDK 渲染容器 */}
       <div
         id={CONTAINER_ID}
+        ref={containerRef}
         style={{
           width: '100%',
           height: '100%',
