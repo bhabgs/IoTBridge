@@ -7,12 +7,12 @@ export default defineConfig({
   entry: typesOnly ? ["src/index-core.ts"] : ["src/index.ts"],
   format: ["esm"],
   dts: {
-    resolve: true,
     compilerOptions: {
       skipLibCheck: true,
       moduleResolution: "bundler",
     },
   },
+  external: ["three", /three\/examples\/.*/],
   clean: !typesOnly, // 类型构建时不清理，避免覆盖
   sourcemap: true,
   minify: false,
@@ -21,5 +21,4 @@ export default defineConfig({
     options.drop = []; // 保留 console.log
   },
   outDir: "dist",
-  // 不将渲染器包 externalize，因为它们现在是直接依赖
 });

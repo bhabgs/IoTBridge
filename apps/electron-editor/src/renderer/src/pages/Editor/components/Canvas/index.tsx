@@ -40,7 +40,7 @@ const Canvas = ({ className, defaultMode = '2D', defaultRunMode = 'edit' }: Canv
       />
 
       {/* 初始化提示 */}
-      <div
+      {/* <div
         style={{
           position: 'absolute',
           top: '50%',
@@ -51,7 +51,7 @@ const Canvas = ({ className, defaultMode = '2D', defaultRunMode = 'edit' }: Canv
         }}
       >
         正在初始化画布...
-      </div>
+      </div> */}
     </div>
   )
 }

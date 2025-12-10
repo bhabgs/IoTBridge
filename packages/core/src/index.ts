@@ -15,30 +15,47 @@ class IndustrialConfigSDK {
         id: "1",
         type: "rect",
         transform: {
-          position: { x: 0, y: 0, z: 0 },
+          position: { x: 0, y: 50, z: 0 },
         },
         geometry: {
           width: 100,
           height: 100,
+          depth: 100,
         },
         material: {
-          color: "#000000",
+          color: "yellow",
         },
       },
       {
         id: "2",
         type: "rect",
         transform: {
-          position: { x: 150, y: 0, z: 0 },
+          position: { x: 150, y: 50, z: 0 },
         },
         geometry: {
           width: 100,
           height: 100,
+          depth: 100,
         },
         material: {
-          color: "#000000",
+          color: "green",
         },
       },
+      // {
+      //   id: "3",
+      //   type: "rect",
+      //   transform: {
+      //     position: { x: 200, y: 50, z: 0 },
+      //   },
+      //   geometry: {
+      //     width: 100,
+      //     height: 100,
+      //     depth: 100,
+      //   },
+      //   material: {
+      //     color: "red",
+      //   },
+      // },
     ],
     assets: {},
     symbols: [],
