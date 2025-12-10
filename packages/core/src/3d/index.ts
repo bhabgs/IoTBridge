@@ -81,7 +81,6 @@ export class Three3D {
     for (const node of nodes) {
       const object = nodeFactory.createObject3D(node);
       if (object) {
-        console.log(object);
         this.scene.add(object);
       }
     }

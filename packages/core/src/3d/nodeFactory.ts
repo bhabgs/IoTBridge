@@ -46,7 +46,6 @@ export class NodeFactory {
         object = this.createPolyline(node);
         break;
       default:
-        console.log(`Unsupported node type: ${node.type}`);
         return null;
     }
 
