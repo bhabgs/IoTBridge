@@ -19,10 +19,10 @@ export interface SceneSetupOptions {
 
 const defaultOptions: SceneSetupOptions = {
   backgroundColor: 0xf0f0f0,
-  gridSize: 1000,
+  gridSize: 10,
   gridDivisions: 20,
   showAxes: true,
-  axesSize: 200,
+  axesSize: 2,
   ambientLightIntensity: 0.5,
   directionalLightIntensity: 0.8,
 };
@@ -63,7 +63,7 @@ export function setupScene(
     0xffffff,
     opts.directionalLightIntensity
   );
-  directionalLight.position.set(100, 100, 100);
+  directionalLight.position.set(5, 5, 5);
   scene.add(directionalLight);
 }
 

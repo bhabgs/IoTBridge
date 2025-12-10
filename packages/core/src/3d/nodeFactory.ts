@@ -13,6 +13,14 @@ import {
 import { SceneNode } from "../types";
 import { createMaterial, parseColor } from "./materials";
 
+/** 像素到世界单位的转换比例：100px = 1 world unit */
+const SCALE = 0.01;
+
+/** 将像素值转换为世界单位 */
+function toWorldUnit(px: number): number {
+  return px * SCALE;
+}
+
 /**
  * 节点工厂 - 负责将 SceneNode 转换为 Three.js Object3D
  */
@@ -91,9 +99,9 @@ export class NodeFactory {
    */
   createRect(node: SceneNode): Mesh {
     const geometry = node.geometry;
-    const width = geometry?.width ?? 100;
-    const height = geometry?.height ?? 100;
-    const depth = geometry?.depth ?? 10;
+    const width = toWorldUnit(geometry?.width ?? 100);
+    const height = toWorldUnit(geometry?.height ?? 100);
+    const depth = toWorldUnit(geometry?.depth ?? 10);
 
     const color = parseColor(node.style?.fill || node.material?.color);
     const boxGeometry = new BoxGeometry(width, height, depth);
@@ -107,7 +115,7 @@ export class NodeFactory {
    */
   createCircle(node: SceneNode): Mesh {
     const geometry = node.geometry;
-    const radius = geometry?.radius ?? 50;
+    const radius = toWorldUnit(geometry?.radius ?? 50);
 
     const sphereGeometry = new SphereGeometry(radius, 32, 32);
     const material = createMaterial(node);
@@ -120,8 +128,8 @@ export class NodeFactory {
    */
   createEllipse(node: SceneNode): Mesh {
     const geometry = node.geometry;
-    const radiusX = geometry?.radiusX ?? geometry?.radius ?? 50;
-    const radiusY = geometry?.radiusY ?? geometry?.radius ?? 50;
+    const radiusX = toWorldUnit(geometry?.radiusX ?? geometry?.radius ?? 50);
+    const radiusY = toWorldUnit(geometry?.radiusY ?? geometry?.radius ?? 50);
 
     const sphereGeometry = new SphereGeometry(1, 32, 32);
     const material = createMaterial(node);
@@ -141,7 +149,9 @@ export class NodeFactory {
       { x: 100, y: 0 },
     ];
 
-    const vertices = points.map((p) => new Vector3(p.x, p.y, 0));
+    const vertices = points.map(
+      (p) => new Vector3(toWorldUnit(p.x), toWorldUnit(p.y), 0)
+    );
     const lineGeometry = new BufferGeometry().setFromPoints(vertices);
 
     const color = parseColor(node.style?.stroke || node.material?.color);
@@ -161,7 +171,9 @@ export class NodeFactory {
       return new Line();
     }
 
-    const vertices = points.map((p) => new Vector3(p.x, p.y, 0));
+    const vertices = points.map(
+      (p) => new Vector3(toWorldUnit(p.x), toWorldUnit(p.y), 0)
+    );
 
     // 如果是闭合多边形，添加回到起点的点
     if (node.type === "polygon" || geometry?.closed) {
@@ -182,9 +194,13 @@ export class NodeFactory {
     const transform = node.transform;
     if (!transform) return;
 
-    // 设置位置
+    // 设置位置（像素转世界单位）
     const pos = transform.position;
-    object.position.set(pos.x, pos.y, pos.z);
+    object.position.set(
+      toWorldUnit(pos.x),
+      toWorldUnit(pos.y),
+      toWorldUnit(pos.z)
+    );
 
     // 设置旋转（角度转弧度）
     if (transform.rotation) {
@@ -196,7 +212,7 @@ export class NodeFactory {
       );
     }
 
-    // 设置缩放
+    // 设置缩放（不需要转换，缩放是比例值）
     if (transform.scale) {
       const scale = transform.scale;
       object.scale.set(scale.x, scale.y, scale.z);

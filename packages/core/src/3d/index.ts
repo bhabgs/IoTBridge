@@ -20,7 +20,7 @@ export class Three3D {
 
   // 键盘控制
   private keys = new Set<string>();
-  private moveSpeed = 5; // 移动速度
+  private moveSpeed = 0.05; // 移动速度（世界单位）
 
   constructor(options: Three3DOptions) {
     const { container, sceneModel } = options;
@@ -32,10 +32,10 @@ export class Three3D {
     this.camera = new PerspectiveCamera(
       75,
       clientWidth / clientHeight,
-      0.1,
-      1000
+      0.01,
+      100
     );
-    this.camera.position.set(200, 200, 200);
+    this.camera.position.set(3, 3, 3);
     this.camera.lookAt(0, 0, 0);
 
     // 创建渲染器
@@ -51,8 +51,8 @@ export class Three3D {
     );
     this.orbitControls.enableDamping = true; // 启用阻尼，使旋转更平滑
     this.orbitControls.dampingFactor = 0.05;
-    this.orbitControls.minDistance = 50; // 最小缩放距离
-    this.orbitControls.maxDistance = 2000; // 最大缩放距离
+    this.orbitControls.minDistance = 0.5; // 最小缩放距离
+    this.orbitControls.maxDistance = 50; // 最大缩放距离
     this.orbitControls.enablePan = true; // 启用平移
 
     this.init();
