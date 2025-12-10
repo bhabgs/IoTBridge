@@ -5,6 +5,9 @@ import {
   AxesHelper,
   AmbientLight,
   DirectionalLight,
+  Mesh,
+  PlaneGeometry,
+  MeshStandardMaterial,
 } from "three";
 
 export interface SceneSetupOptions {
@@ -13,6 +16,8 @@ export interface SceneSetupOptions {
   gridDivisions?: number;
   showAxes?: boolean;
   axesSize?: number;
+  showFloor?: boolean;
+  floorColor?: number | string;
   ambientLightIntensity?: number;
   directionalLightIntensity?: number;
 }
@@ -23,6 +28,8 @@ const defaultOptions: SceneSetupOptions = {
   gridDivisions: 20,
   showAxes: true,
   axesSize: 2,
+  showFloor: true,
+  floorColor: 0xe0e0e0,
   ambientLightIntensity: 0.5,
   directionalLightIntensity: 0.8,
 };
@@ -52,6 +59,22 @@ export function setupScene(
   if (opts.showAxes) {
     const axesHelper = new AxesHelper(opts.axesSize);
     scene.add(axesHelper);
+  }
+
+  // 添加地板
+  if (opts.showFloor) {
+    const floorGeometry = new PlaneGeometry(opts.gridSize!, opts.gridSize!);
+    const floorMaterial = new MeshStandardMaterial({
+      color: new Color(opts.floorColor),
+      roughness: 0.8,
+      metalness: 0.2,
+    });
+    const floor = new Mesh(floorGeometry, floorMaterial);
+    floor.rotation.x = -Math.PI / 2; // 旋转到水平面
+    floor.position.y = -0.001; // 略低于网格，避免 z-fighting
+    floor.receiveShadow = true;
+    floor.name = "__floor__";
+    scene.add(floor);
   }
 
   // 添加环境光
