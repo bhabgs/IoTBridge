@@ -170,20 +170,20 @@ export class Three3D {
     const code = event.code.toLowerCase();
 
     // 变换模式快捷键
-    if (key === "g" || key === "t") {
+    // W 键切换移动模式（当不在相机移动状态时）
+    if (key === "1") {
       this.transformer.setMode("translate");
       return;
     }
-    if (key === "r") {
+    // E 键切换旋转模式（当不在相机移动状态时）
+    if (key === "2") {
       this.transformer.setMode("rotate");
       return;
     }
-    if (key === "s" && !event.ctrlKey && !event.metaKey) {
-      // S 键切换缩放模式（但不是 Ctrl+S 保存）
-      if (!this.keys.has("w") && !this.keys.has("a") && !this.keys.has("d")) {
-        this.transformer.setMode("scale");
-        return;
-      }
+    // R 键切换缩放模式
+    if (key === "3") {
+      this.transformer.setMode("scale");
+      return;
     }
 
     // 删除选中对象
