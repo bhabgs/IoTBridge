@@ -10,8 +10,8 @@ export interface Pixi2DOptions {
   autoResize?: boolean;
 }
 
-/** 变换模式 */
-export type TransformMode2D = "translate" | "rotate" | "scale";
+/** 变换模式（只支持旋转和缩放，拖拽由元素本身处理） */
+export type TransformMode2D = "rotate" | "scale";
 
 /** 变换事件 */
 export interface TransformChangeEvent2D {

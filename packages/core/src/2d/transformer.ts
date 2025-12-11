@@ -1,4 +1,4 @@
-import { Container, Graphics, FederatedPointerEvent, Point } from "pixi.js";
+import { Container, Graphics, FederatedPointerEvent } from "pixi.js";
 import { TransformMode2D, TransformChangeEvent2D } from "./types";
 
 export type TransformChangeCallback2D = (event: TransformChangeEvent2D) => void;
@@ -28,39 +28,37 @@ const defaultOptions: Transformer2DOptions = {
   translationSnap: null,
   rotationSnap: null,
   scaleSnap: null,
-  mode: "translate",
+  mode: "scale", // 默认模式改为 scale
   handleSize: 10,
   handleColor: 0x00aaff,
   boxColor: 0x00aaff,
   rotationHandleDistance: 30,
 };
 
-type HandleType = "tl" | "tr" | "br" | "bl" | "t" | "r" | "b" | "l" | "rotate" | "body";
+type HandleType = "tl" | "tr" | "br" | "bl" | "t" | "r" | "b" | "l" | "rotate";
 
 /**
  * 2D 变换器 - 负责处理 PixiJS 对象的变换（移动、旋转、缩放）
  */
 export class Transformer2D {
   private stage: Container;
+  private canvas: HTMLCanvasElement;
   private options: Required<Transformer2DOptions>;
 
   /** 当前附加的对象 */
   private attachedObject: Container | null = null;
 
   /** 当前变换模式 */
-  private currentMode: TransformMode2D = "translate";
+  private currentMode: TransformMode2D = "scale";
 
   /** 变换控制器容器 */
   private controlsContainer: Container;
 
-  /** 控制框 */
-  private boundingBox: Graphics;
-
-  /** 控制手柄 */
+  /** 各个控制元素 */
+  private borderLine: Graphics;
   private handles: Map<HandleType, Graphics> = new Map();
-
-  /** 旋转手柄 */
   private rotateHandle: Graphics;
+  private rotateLine: Graphics;
 
   /** 变换前的状态 */
   private positionOnDown: { x: number; y: number } | null = null;
@@ -68,8 +66,8 @@ export class Transformer2D {
   private scaleOnDown: { x: number; y: number } | null = null;
 
   /** 拖拽状态 */
-  private isDragging = false;
-  private dragStartPoint: Point | null = null;
+  private _isDragging = false;
+  private dragStartPoint: { x: number; y: number } | null = null;
   private activeHandle: HandleType | null = null;
 
   /** 回调 */
@@ -77,28 +75,48 @@ export class Transformer2D {
   private onStartCallbacks: TransformStartCallback2D[] = [];
   private onEndCallbacks: TransformEndCallback2D[] = [];
 
-  constructor(stage: Container, options: Transformer2DOptions = {}) {
+  /** 绑定的事件处理函数 */
+  private boundOnPointerMove: (e: PointerEvent) => void;
+  private boundOnPointerUp: (e: PointerEvent) => void;
+
+  constructor(
+    stage: Container,
+    canvas: HTMLCanvasElement,
+    options: Transformer2DOptions = {}
+  ) {
     this.stage = stage;
-    this.options = { ...defaultOptions, ...options } as Required<Transformer2DOptions>;
+    this.canvas = canvas;
+    this.options = {
+      ...defaultOptions,
+      ...options,
+    } as Required<Transformer2DOptions>;
     this.currentMode = this.options.mode;
+
+    // 绑定事件处理函数
+    this.boundOnPointerMove = this.onPointerMove.bind(this);
+    this.boundOnPointerUp = this.onPointerUp.bind(this);
 
     // 创建控制器容器
     this.controlsContainer = new Container();
     this.controlsContainer.label = "__transformer__";
     this.controlsContainer.visible = false;
+    this.controlsContainer.eventMode = "static";
 
-    // 创建边界框
-    this.boundingBox = new Graphics();
-    this.boundingBox.label = "__transformerBox__";
-    this.boundingBox.eventMode = "static";
-    this.boundingBox.cursor = "move";
-    this.controlsContainer.addChild(this.boundingBox);
+    // 创建边框线
+    this.borderLine = new Graphics();
+    this.borderLine.label = "__borderLine__";
+    this.controlsContainer.addChild(this.borderLine);
+
+    // 创建旋转连接线
+    this.rotateLine = new Graphics();
+    this.rotateLine.label = "__rotateLine__";
+    this.controlsContainer.addChild(this.rotateLine);
 
     // 创建旋转手柄
-    this.rotateHandle = new Graphics();
-    this.rotateHandle.label = "__rotateHandle__";
-    this.rotateHandle.eventMode = "static";
-    this.rotateHandle.cursor = "crosshair";
+    this.rotateHandle = this.createInteractiveGraphics(
+      "__rotateHandle__",
+      "crosshair"
+    );
     this.controlsContainer.addChild(this.rotateHandle);
 
     // 创建缩放手柄
@@ -107,16 +125,40 @@ export class Transformer2D {
     // 添加到舞台
     this.stage.addChild(this.controlsContainer);
 
-    // 绑定事件
-    this.bindEvents();
+    // 绑定 PixiJS 事件
+    this.bindPixiEvents();
+
+    // 绑定 DOM 事件
+    this.bindDOMEvents();
+  }
+
+  /**
+   * 创建可交互的 Graphics
+   */
+  private createInteractiveGraphics(label: string, cursor: string): Graphics {
+    const g = new Graphics();
+    g.label = label;
+    g.eventMode = "static";
+    g.cursor = cursor;
+    g.interactive = true;
+    return g;
   }
 
   /**
    * 创建缩放手柄
    */
   private createHandles(): void {
-    const handleTypes: HandleType[] = ["tl", "tr", "br", "bl", "t", "r", "b", "l"];
-    const cursors: Record<HandleType, string> = {
+    const handleTypes: HandleType[] = [
+      "tl",
+      "tr",
+      "br",
+      "bl",
+      "t",
+      "r",
+      "b",
+      "l",
+    ];
+    const cursors: Record<string, string> = {
       tl: "nwse-resize",
       tr: "nesw-resize",
       br: "nwse-resize",
@@ -125,51 +167,58 @@ export class Transformer2D {
       r: "ew-resize",
       b: "ns-resize",
       l: "ew-resize",
-      rotate: "crosshair",
-      body: "move",
     };
 
     for (const type of handleTypes) {
-      const handle = new Graphics();
-      handle.label = `__handle_${type}__`;
-      handle.eventMode = "static";
-      handle.cursor = cursors[type];
+      const handle = this.createInteractiveGraphics(
+        `__handle_${type}__`,
+        cursors[type]
+      );
       this.handles.set(type, handle);
       this.controlsContainer.addChild(handle);
     }
   }
 
   /**
-   * 绑定事件
+   * 绑定 PixiJS 事件
    */
-  private bindEvents(): void {
-    // 边界框拖拽（移动）
-    this.boundingBox.on("pointerdown", (e) => this.onHandlePointerDown(e, "body"));
-
+  private bindPixiEvents(): void {
     // 旋转手柄
-    this.rotateHandle.on("pointerdown", (e) => this.onHandlePointerDown(e, "rotate"));
+    this.rotateHandle.on("pointerdown", (e: FederatedPointerEvent) => {
+      this.startDrag(e, "rotate");
+    });
 
     // 缩放手柄
     this.handles.forEach((handle, type) => {
-      handle.on("pointerdown", (e) => this.onHandlePointerDown(e, type));
+      handle.on("pointerdown", (e: FederatedPointerEvent) => {
+        this.startDrag(e, type);
+      });
     });
-
-    // 全局移动和释放事件
-    this.stage.on("pointermove", this.onPointerMove);
-    this.stage.on("pointerup", this.onPointerUp);
-    this.stage.on("pointerupoutside", this.onPointerUp);
   }
 
   /**
-   * 手柄按下
+   * 绑定 DOM 事件
    */
-  private onHandlePointerDown = (event: FederatedPointerEvent, handleType: HandleType): void => {
+  private bindDOMEvents(): void {
+    // 使用 document 监听，确保拖拽时鼠标移出画布也能继续
+    document.addEventListener("pointermove", this.boundOnPointerMove);
+    document.addEventListener("pointerup", this.boundOnPointerUp);
+  }
+
+  /**
+   * 开始拖拽
+   */
+  private startDrag(
+    event: FederatedPointerEvent,
+    handleType: HandleType
+  ): void {
     if (!this.attachedObject) return;
 
     event.stopPropagation();
-    this.isDragging = true;
+
+    this._isDragging = true;
     this.activeHandle = handleType;
-    this.dragStartPoint = event.global.clone();
+    this.dragStartPoint = { x: event.globalX, y: event.globalY };
 
     // 记录初始状态
     this.positionOnDown = {
@@ -186,26 +235,31 @@ export class Transformer2D {
     for (const callback of this.onStartCallbacks) {
       callback(this.attachedObject);
     }
-  };
+  }
 
   /**
-   * 指针移动
+   * 指针移动 (DOM 事件)
    */
-  private onPointerMove = (event: FederatedPointerEvent): void => {
-    if (!this.isDragging || !this.attachedObject || !this.dragStartPoint || !this.activeHandle) return;
+  private onPointerMove(event: PointerEvent): void {
+    if (
+      !this._isDragging ||
+      !this.attachedObject ||
+      !this.dragStartPoint ||
+      !this.activeHandle
+    ) {
+      return;
+    }
 
-    const currentPoint = event.global;
-    const deltaX = currentPoint.x - this.dragStartPoint.x;
-    const deltaY = currentPoint.y - this.dragStartPoint.y;
+    const rect = this.canvas.getBoundingClientRect();
+    const currentX = event.clientX - rect.left;
+    const currentY = event.clientY - rect.top;
 
-    if (this.activeHandle === "body") {
-      // 移动
-      this.handleTranslate(deltaX, deltaY);
-    } else if (this.activeHandle === "rotate") {
-      // 旋转
-      this.handleRotate(currentPoint);
+    const deltaX = currentX - this.dragStartPoint.x;
+    const deltaY = currentY - this.dragStartPoint.y;
+
+    if (this.activeHandle === "rotate") {
+      this.handleRotate(currentX, currentY);
     } else {
-      // 缩放
       this.handleScale(this.activeHandle, deltaX, deltaY);
     }
 
@@ -214,29 +268,37 @@ export class Transformer2D {
 
     // 触发变换回调
     this.emitChangeEvent();
-  };
+  }
 
   /**
-   * 指针释放
+   * 指针释放 (DOM 事件)
    */
-  private onPointerUp = (): void => {
-    if (!this.isDragging || !this.attachedObject) return;
+  private onPointerUp(_event: PointerEvent): void {
+    if (!this._isDragging) return;
 
-    this.isDragging = false;
+    this._isDragging = false;
 
     // 触发结束回调
-    const hasChanged = this.checkHasChanged();
-    if (hasChanged) {
-      const event: TransformChangeEvent2D = {
-        object: this.attachedObject,
-        mode: this.currentMode,
-        position: { x: this.attachedObject.position.x, y: this.attachedObject.position.y },
-        rotation: this.attachedObject.rotation,
-        scale: { x: this.attachedObject.scale.x, y: this.attachedObject.scale.y },
-      };
+    if (this.attachedObject) {
+      const hasChanged = this.checkHasChanged();
+      if (hasChanged) {
+        const evt: TransformChangeEvent2D = {
+          object: this.attachedObject,
+          mode: this.currentMode,
+          position: {
+            x: this.attachedObject.position.x,
+            y: this.attachedObject.position.y,
+          },
+          rotation: this.attachedObject.rotation,
+          scale: {
+            x: this.attachedObject.scale.x,
+            y: this.attachedObject.scale.y,
+          },
+        };
 
-      for (const callback of this.onEndCallbacks) {
-        callback(event);
+        for (const callback of this.onEndCallbacks) {
+          callback(evt);
+        }
       }
     }
 
@@ -246,41 +308,21 @@ export class Transformer2D {
     this.positionOnDown = null;
     this.rotationOnDown = null;
     this.scaleOnDown = null;
-  };
-
-  /**
-   * 处理移动
-   */
-  private handleTranslate(deltaX: number, deltaY: number): void {
-    if (!this.attachedObject || !this.positionOnDown) return;
-
-    let newX = this.positionOnDown.x + deltaX;
-    let newY = this.positionOnDown.y + deltaY;
-
-    // 应用捕捉
-    if (this.options.translationSnap !== null) {
-      newX = Math.round(newX / this.options.translationSnap) * this.options.translationSnap;
-      newY = Math.round(newY / this.options.translationSnap) * this.options.translationSnap;
-    }
-
-    this.attachedObject.position.set(newX, newY);
   }
 
   /**
    * 处理旋转
    */
-  private handleRotate(currentPoint: Point): void {
+  private handleRotate(currentX: number, currentY: number): void {
     if (!this.attachedObject) return;
 
     const bounds = this.attachedObject.getBounds();
     const centerX = bounds.x + bounds.width / 2;
     const centerY = bounds.y + bounds.height / 2;
 
-    // 计算角度
-    const angle = Math.atan2(currentPoint.y - centerY, currentPoint.x - centerX);
-    let rotation = angle + Math.PI / 2; // 调整到顶部为0
+    const angle = Math.atan2(currentY - centerY, currentX - centerX);
+    let rotation = angle + Math.PI / 2;
 
-    // 应用捕捉
     if (this.options.rotationSnap !== null) {
       const snapRadians = (this.options.rotationSnap * Math.PI) / 180;
       rotation = Math.round(rotation / snapRadians) * snapRadians;
@@ -292,17 +334,22 @@ export class Transformer2D {
   /**
    * 处理缩放
    */
-  private handleScale(handleType: HandleType, deltaX: number, deltaY: number): void {
+  private handleScale(
+    handleType: HandleType,
+    deltaX: number,
+    deltaY: number
+  ): void {
     if (!this.attachedObject || !this.scaleOnDown) return;
 
     const bounds = this.attachedObject.getBounds();
     const originalWidth = bounds.width / this.scaleOnDown.x;
     const originalHeight = bounds.height / this.scaleOnDown.y;
 
+    if (originalWidth === 0 || originalHeight === 0) return;
+
     let scaleX = this.scaleOnDown.x;
     let scaleY = this.scaleOnDown.y;
 
-    // 根据手柄类型计算缩放
     switch (handleType) {
       case "tl":
         scaleX = this.scaleOnDown.x - deltaX / originalWidth;
@@ -334,14 +381,14 @@ export class Transformer2D {
         break;
     }
 
-    // 防止缩放到负值
     scaleX = Math.max(0.01, scaleX);
     scaleY = Math.max(0.01, scaleY);
 
-    // 应用捕捉
     if (this.options.scaleSnap !== null) {
-      scaleX = Math.round(scaleX / this.options.scaleSnap) * this.options.scaleSnap;
-      scaleY = Math.round(scaleY / this.options.scaleSnap) * this.options.scaleSnap;
+      scaleX =
+        Math.round(scaleX / this.options.scaleSnap) * this.options.scaleSnap;
+      scaleY =
+        Math.round(scaleY / this.options.scaleSnap) * this.options.scaleSnap;
     }
 
     this.attachedObject.scale.set(scaleX, scaleY);
@@ -362,7 +409,10 @@ export class Transformer2D {
       }
     }
 
-    if (this.rotationOnDown !== null && this.rotationOnDown !== this.attachedObject.rotation) {
+    if (
+      this.rotationOnDown !== null &&
+      this.rotationOnDown !== this.attachedObject.rotation
+    ) {
       return true;
     }
 
@@ -384,16 +434,19 @@ export class Transformer2D {
   private emitChangeEvent(): void {
     if (!this.attachedObject) return;
 
-    const event: TransformChangeEvent2D = {
+    const evt: TransformChangeEvent2D = {
       object: this.attachedObject,
       mode: this.currentMode,
-      position: { x: this.attachedObject.position.x, y: this.attachedObject.position.y },
+      position: {
+        x: this.attachedObject.position.x,
+        y: this.attachedObject.position.y,
+      },
       rotation: this.attachedObject.rotation,
       scale: { x: this.attachedObject.scale.x, y: this.attachedObject.scale.y },
     };
 
     for (const callback of this.onChangeCallbacks) {
-      callback(event);
+      callback(evt);
     }
   }
 
@@ -404,15 +457,21 @@ export class Transformer2D {
     if (!this.attachedObject || !this.controlsContainer.visible) return;
 
     const bounds = this.attachedObject.getBounds();
-    const { handleSize, handleColor, boxColor, rotationHandleDistance } = this.options;
+    const { handleSize, handleColor, boxColor, rotationHandleDistance } =
+      this.options;
 
-    // 绘制边界框
-    this.boundingBox.clear();
-    this.boundingBox.rect(bounds.x, bounds.y, bounds.width, bounds.height);
-    this.boundingBox.stroke({ width: 2, color: boxColor });
+    // 清除所有图形
+    this.borderLine.clear();
+    this.rotateLine.clear();
+    this.rotateHandle.clear();
+    this.handles.forEach((h) => h.clear());
+
+    // 绘制边框线
+    this.borderLine.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+    this.borderLine.stroke({ width: 2, color: boxColor });
 
     // 手柄位置
-    const handlePositions: Record<HandleType, { x: number; y: number }> = {
+    const positions: Record<HandleType, { x: number; y: number }> = {
       tl: { x: bounds.x, y: bounds.y },
       tr: { x: bounds.x + bounds.width, y: bounds.y },
       br: { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
@@ -421,31 +480,32 @@ export class Transformer2D {
       r: { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 },
       b: { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height },
       l: { x: bounds.x, y: bounds.y + bounds.height / 2 },
-      rotate: { x: bounds.x + bounds.width / 2, y: bounds.y - rotationHandleDistance },
-      body: { x: 0, y: 0 },
+      rotate: {
+        x: bounds.x + bounds.width / 2,
+        y: bounds.y - rotationHandleDistance,
+      },
     };
 
     // 绘制缩放手柄
     this.handles.forEach((handle, type) => {
-      handle.clear();
-      const pos = handlePositions[type];
-      handle.rect(pos.x - handleSize / 2, pos.y - handleSize / 2, handleSize, handleSize);
-      handle.fill(0xffffff);
+      const pos = positions[type];
+      const hs = handleSize;
+      handle.rect(pos.x - hs / 2, pos.y - hs / 2, hs, hs);
+      handle.fill({ color: 0xffffff });
       handle.stroke({ width: 1, color: handleColor });
     });
 
+    // 绘制旋转连接线
+    const topCenter = positions.t;
+    const rotatePos = positions.rotate;
+    this.rotateLine.moveTo(topCenter.x, topCenter.y);
+    this.rotateLine.lineTo(rotatePos.x, rotatePos.y);
+    this.rotateLine.stroke({ width: 1, color: boxColor });
+
     // 绘制旋转手柄
-    this.rotateHandle.clear();
-    const rotatePos = handlePositions.rotate;
-
-    // 连接线
-    this.rotateHandle.moveTo(handlePositions.t.x, handlePositions.t.y);
-    this.rotateHandle.lineTo(rotatePos.x, rotatePos.y);
-    this.rotateHandle.stroke({ width: 1, color: boxColor });
-
-    // 旋转手柄圆形
-    this.rotateHandle.circle(rotatePos.x, rotatePos.y, handleSize / 2);
-    this.rotateHandle.fill(0xffffff);
+    const rhs = handleSize / 2 + 3;
+    this.rotateHandle.circle(rotatePos.x, rotatePos.y, rhs);
+    this.rotateHandle.fill({ color: 0xffffff });
     this.rotateHandle.stroke({ width: 1, color: handleColor });
   }
 
@@ -512,7 +572,7 @@ export class Transformer2D {
    * 是否正在拖拽
    */
   isDraggingObject(): boolean {
-    return this.isDragging;
+    return this._isDragging;
   }
 
   /**
@@ -548,9 +608,7 @@ export class Transformer2D {
    */
   offTransformChange(callback: TransformChangeCallback2D): void {
     const index = this.onChangeCallbacks.indexOf(callback);
-    if (index !== -1) {
-      this.onChangeCallbacks.splice(index, 1);
-    }
+    if (index !== -1) this.onChangeCallbacks.splice(index, 1);
   }
 
   /**
@@ -558,9 +616,7 @@ export class Transformer2D {
    */
   offTransformStart(callback: TransformStartCallback2D): void {
     const index = this.onStartCallbacks.indexOf(callback);
-    if (index !== -1) {
-      this.onStartCallbacks.splice(index, 1);
-    }
+    if (index !== -1) this.onStartCallbacks.splice(index, 1);
   }
 
   /**
@@ -568,19 +624,16 @@ export class Transformer2D {
    */
   offTransformEnd(callback: TransformEndCallback2D): void {
     const index = this.onEndCallbacks.indexOf(callback);
-    if (index !== -1) {
-      this.onEndCallbacks.splice(index, 1);
-    }
+    if (index !== -1) this.onEndCallbacks.splice(index, 1);
   }
 
   /**
    * 销毁
    */
   dispose(): void {
-    // 移除事件监听
-    this.stage.off("pointermove", this.onPointerMove);
-    this.stage.off("pointerup", this.onPointerUp);
-    this.stage.off("pointerupoutside", this.onPointerUp);
+    // 移除 DOM 事件监听
+    document.removeEventListener("pointermove", this.boundOnPointerMove);
+    document.removeEventListener("pointerup", this.boundOnPointerUp);
 
     // 移除控制器
     if (this.controlsContainer.parent) {

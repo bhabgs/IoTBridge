@@ -1,6 +1,10 @@
 import { Application, Container, FederatedPointerEvent } from "pixi.js";
 import { SceneModel } from "../types";
-import { Pixi2DOptions, TransformMode2D, TransformChangeEvent2D } from "./types";
+import {
+  Pixi2DOptions,
+  TransformMode2D,
+  TransformChangeEvent2D,
+} from "./types";
 import { nodeFactory2D } from "./nodeFactory";
 import { Selector2D, SelectionChangeCallback2D } from "./selector";
 import { Transformer2D } from "./transformer";
@@ -22,6 +26,8 @@ export class Pixi2D {
   /** 指针状态 */
   private pointerDownPosition = { x: 0, y: 0 };
   private pointerUpPosition = { x: 0, y: 0 };
+  /** 是否正在拖拽元素 */
+  private isDraggingElement = false;
 
   /** 初始化 Promise */
   private initPromise: Promise<void>;
@@ -108,8 +114,103 @@ export class Pixi2D {
       const displayObject = nodeFactory2D.createDisplayObject(node);
       if (displayObject) {
         this.app.stage.addChild(displayObject);
+        // 为元素启用拖拽功能
+        this.enableDrag(displayObject);
       }
     }
+  }
+
+  /**
+   * 为元素启用拖拽功能
+   */
+  private enableDrag(object: Container): void {
+    if (!this.app) return;
+
+    let isDragging = false;
+    let hasMoved = false; // 标记是否真正移动了
+    let dragStartPoint: { x: number; y: number } | null = null;
+    let objectStartPosition: { x: number; y: number } | null = null;
+
+    // 指针按下
+    object.on("pointerdown", (e: FederatedPointerEvent) => {
+      // 如果正在使用变换控制器，不处理拖拽
+      if (this.transformer?.isDraggingObject()) {
+        return;
+      }
+
+      e.stopPropagation();
+      isDragging = true;
+      hasMoved = false;
+      dragStartPoint = { x: e.globalX, y: e.globalY };
+      objectStartPosition = { x: object.x, y: object.y };
+
+      // 设置光标
+      object.cursor = "move";
+    });
+
+    // 指针移动（使用全局事件，确保移出元素也能继续拖拽）
+    const onPointerMove = (e: PointerEvent) => {
+      if (!isDragging || !dragStartPoint || !objectStartPosition) return;
+
+      const rect = this.app!.canvas.getBoundingClientRect();
+      const currentX = e.clientX - rect.left;
+      const currentY = e.clientY - rect.top;
+
+      const deltaX = currentX - dragStartPoint.x;
+      const deltaY = currentY - dragStartPoint.y;
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+      // 如果移动距离超过阈值，认为是拖拽
+      if (distance > 3) {
+        if (!hasMoved) {
+          hasMoved = true;
+          this.isDraggingElement = true;
+        }
+
+        // 更新对象位置
+        object.x = objectStartPosition.x + deltaX;
+        object.y = objectStartPosition.y + deltaY;
+
+        // 如果对象被选中，更新变换控制器和边界框
+        if (this.selector?.selected === object) {
+          this.transformer?.updateControls();
+          this.selector.refreshBoundingBox();
+        }
+      }
+    };
+
+    // 指针释放
+    const onPointerUp = () => {
+      if (isDragging) {
+        // 如果没有真正移动，认为是点击，应该选择对象
+        if (!hasMoved) {
+          // 选择对象
+          this.selector?.select(object);
+        }
+
+        isDragging = false;
+        hasMoved = false;
+        this.isDraggingElement = false;
+        dragStartPoint = null;
+        objectStartPosition = null;
+        object.cursor = "pointer";
+
+        // 更新边界框
+        if (this.selector?.selected === object) {
+          this.selector.refreshBoundingBox();
+        }
+      }
+    };
+
+    // 绑定全局事件
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
+
+    // 在对象销毁时移除事件监听
+    object.on("destroyed", () => {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+    });
   }
 
   /**
@@ -147,10 +248,6 @@ export class Pixi2D {
     const key = event.key.toLowerCase();
 
     // 变换模式快捷键
-    if (key === "1") {
-      this.transformer?.setMode("translate");
-      return;
-    }
     if (key === "2") {
       this.transformer?.setMode("rotate");
       return;
@@ -176,7 +273,10 @@ export class Pixi2D {
   /**
    * 获取鼠标位置
    */
-  private getPointerPosition(event: FederatedPointerEvent): { x: number; y: number } {
+  private getPointerPosition(event: FederatedPointerEvent): {
+    x: number;
+    y: number;
+  } {
     return {
       x: event.global.x,
       y: event.global.y,
@@ -200,6 +300,11 @@ export class Pixi2D {
     this.pointerUpPosition.x = pos.x;
     this.pointerUpPosition.y = pos.y;
 
+    // 如果正在拖拽元素，不处理选择（元素自己的 onPointerUp 会处理选择）
+    if (this.isDraggingElement) {
+      return;
+    }
+
     // 检查是否是点击（而不是拖拽）
     const dx = this.pointerUpPosition.x - this.pointerDownPosition.x;
     const dy = this.pointerUpPosition.y - this.pointerDownPosition.y;
@@ -209,7 +314,15 @@ export class Pixi2D {
     if (distance < 5) {
       // 如果正在拖拽变换控制器，不处理选择
       if (!this.transformer?.isDraggingObject()) {
-        this.selector?.selectByPoint(this.pointerUpPosition.x, this.pointerUpPosition.y);
+        // 尝试选择点击位置的对象，如果没有对象则取消选择
+        const selected = this.selector?.selectByPoint(
+          this.pointerUpPosition.x,
+          this.pointerUpPosition.y
+        );
+        // 如果没有选中任何对象，取消选择
+        if (!selected) {
+          this.selector?.deselect();
+        }
       }
     }
   };
@@ -291,7 +404,7 @@ export class Pixi2D {
    * 获取当前变换模式
    */
   getTransformMode(): TransformMode2D {
-    return this.transformer?.getMode() ?? "translate";
+    return this.transformer?.getMode() ?? "scale";
   }
 
   /**
@@ -337,6 +450,15 @@ export class Pixi2D {
 
 // 导出类型和模块
 export { Selector2D, SelectionChangeCallback2D } from "./selector";
-export { Transformer2D, TransformChangeCallback2D, TransformStartCallback2D, TransformEndCallback2D } from "./transformer";
+export {
+  Transformer2D,
+  TransformChangeCallback2D,
+  TransformStartCallback2D,
+  TransformEndCallback2D,
+} from "./transformer";
 export { NodeFactory2D, nodeFactory2D, parseColor } from "./nodeFactory";
-export { Pixi2DOptions, TransformMode2D, TransformChangeEvent2D } from "./types";
+export {
+  Pixi2DOptions,
+  TransformMode2D,
+  TransformChangeEvent2D,
+} from "./types";
