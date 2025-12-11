@@ -44,6 +44,8 @@ export class Transformer2D {
   private stage: Container;
   private canvas: HTMLCanvasElement;
   private options: Required<Transformer2DOptions>;
+  /** 内容容器（用于坐标转换，当缩放/平移时） */
+  private contentContainer: Container | null = null;
 
   /** 当前附加的对象 */
   private attachedObject: Container | null = null;
@@ -82,7 +84,8 @@ export class Transformer2D {
   constructor(
     stage: Container,
     canvas: HTMLCanvasElement,
-    options: Transformer2DOptions = {}
+    options: Transformer2DOptions = {},
+    contentContainer?: Container
   ) {
     this.stage = stage;
     this.canvas = canvas;
@@ -91,6 +94,7 @@ export class Transformer2D {
       ...options,
     } as Required<Transformer2DOptions>;
     this.currentMode = this.options.mode;
+    this.contentContainer = contentContainer || null;
 
     // 绑定事件处理函数
     this.boundOnPointerMove = this.onPointerMove.bind(this);
@@ -332,6 +336,13 @@ export class Transformer2D {
   }
 
   /**
+   * 获取内容容器的缩放比例
+   */
+  private getContentScale(): number {
+    return this.contentContainer?.scale.x ?? 1;
+  }
+
+  /**
    * 处理缩放
    */
   private handleScale(
@@ -342,8 +353,14 @@ export class Transformer2D {
     if (!this.attachedObject || !this.scaleOnDown) return;
 
     const bounds = this.attachedObject.getBounds();
-    const originalWidth = bounds.width / this.scaleOnDown.x;
-    const originalHeight = bounds.height / this.scaleOnDown.y;
+    const scale = this.getContentScale();
+
+    // 将屏幕坐标的 delta 转换为内容坐标系的 delta
+    const contentDeltaX = deltaX / scale;
+    const contentDeltaY = deltaY / scale;
+
+    const originalWidth = bounds.width / scale / this.scaleOnDown.x;
+    const originalHeight = bounds.height / scale / this.scaleOnDown.y;
 
     if (originalWidth === 0 || originalHeight === 0) return;
 
@@ -352,32 +369,32 @@ export class Transformer2D {
 
     switch (handleType) {
       case "tl":
-        scaleX = this.scaleOnDown.x - deltaX / originalWidth;
-        scaleY = this.scaleOnDown.y - deltaY / originalHeight;
+        scaleX = this.scaleOnDown.x - contentDeltaX / originalWidth;
+        scaleY = this.scaleOnDown.y - contentDeltaY / originalHeight;
         break;
       case "tr":
-        scaleX = this.scaleOnDown.x + deltaX / originalWidth;
-        scaleY = this.scaleOnDown.y - deltaY / originalHeight;
+        scaleX = this.scaleOnDown.x + contentDeltaX / originalWidth;
+        scaleY = this.scaleOnDown.y - contentDeltaY / originalHeight;
         break;
       case "br":
-        scaleX = this.scaleOnDown.x + deltaX / originalWidth;
-        scaleY = this.scaleOnDown.y + deltaY / originalHeight;
+        scaleX = this.scaleOnDown.x + contentDeltaX / originalWidth;
+        scaleY = this.scaleOnDown.y + contentDeltaY / originalHeight;
         break;
       case "bl":
-        scaleX = this.scaleOnDown.x - deltaX / originalWidth;
-        scaleY = this.scaleOnDown.y + deltaY / originalHeight;
+        scaleX = this.scaleOnDown.x - contentDeltaX / originalWidth;
+        scaleY = this.scaleOnDown.y + contentDeltaY / originalHeight;
         break;
       case "t":
-        scaleY = this.scaleOnDown.y - deltaY / originalHeight;
+        scaleY = this.scaleOnDown.y - contentDeltaY / originalHeight;
         break;
       case "b":
-        scaleY = this.scaleOnDown.y + deltaY / originalHeight;
+        scaleY = this.scaleOnDown.y + contentDeltaY / originalHeight;
         break;
       case "l":
-        scaleX = this.scaleOnDown.x - deltaX / originalWidth;
+        scaleX = this.scaleOnDown.x - contentDeltaX / originalWidth;
         break;
       case "r":
-        scaleX = this.scaleOnDown.x + deltaX / originalWidth;
+        scaleX = this.scaleOnDown.x + contentDeltaX / originalWidth;
         break;
     }
 

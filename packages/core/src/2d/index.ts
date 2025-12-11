@@ -18,6 +18,9 @@ export class Pixi2D {
   sceneModel: SceneModel;
   options: Pixi2DOptions;
 
+  /** 内容容器（用于缩放和平移） */
+  contentContainer: Container | null = null;
+
   /** 选择器 */
   selector: Selector2D | null = null;
   /** 变换器 */
@@ -30,6 +33,17 @@ export class Pixi2D {
   private isDraggingElement = false;
   /** 拖拽开始位置（用于检测是否发生移动） */
   private dragStartObjectPosition: { x: number; y: number } | null = null;
+
+  /** 画布拖拽状态 */
+  private isPanningCanvas = false;
+  private panStartPosition = { x: 0, y: 0 };
+  private panStartCanvasPosition = { x: 0, y: 0 };
+  /** 是否按住空格键 */
+  private isSpacePressed = false;
+
+  /** 缩放限制 */
+  private minZoom = 0.1;
+  private maxZoom = 10;
 
   /** 场景数据变化回调 */
   private sceneChangeCallbacks: SceneChangeCallback[] = [];
@@ -66,13 +80,19 @@ export class Pixi2D {
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
 
+    // 创建内容容器（用于缩放和平移）
+    this.contentContainer = new Container();
+    this.app.stage.addChild(this.contentContainer);
+
     // 创建选择器（禁用边界框，由变换器显示）
-    this.selector = new Selector2D(this.app.stage, {
+    // 选择器需要知道 contentContainer 来查找可选对象
+    this.selector = new Selector2D(this.contentContainer, {
       showBoundingBox: false,
     });
 
-    // 创建变换器
-    this.transformer = new Transformer2D(this.app.stage, this.app.canvas);
+    // 创建变换器（添加到 stage 而不是 contentContainer，以避免缩放影响）
+    // 传入 contentContainer 用于坐标转换
+    this.transformer = new Transformer2D(this.app.stage, this.app.canvas, {}, this.contentContainer);
 
     // 设置选择变化时的处理
     this.selector.onChange((object) => {
@@ -138,7 +158,7 @@ export class Pixi2D {
    * 加载场景节点
    */
   loadNodes(): void {
-    if (!this.app) return;
+    if (!this.app || !this.contentContainer) return;
 
     const nodes = this.sceneModel.nodes;
     if (!nodes || nodes.length === 0) return;
@@ -146,7 +166,7 @@ export class Pixi2D {
     for (const node of nodes) {
       const displayObject = nodeFactory2D.createDisplayObject(node);
       if (displayObject) {
-        this.app.stage.addChild(displayObject);
+        this.contentContainer.addChild(displayObject);
         // 为元素启用拖拽功能
         this.enableDrag(displayObject);
       }
@@ -261,9 +281,12 @@ export class Pixi2D {
           this.isDraggingElement = true;
         }
 
-        // 更新对象位置
-        object.x = objectStartPosition.x + deltaX;
-        object.y = objectStartPosition.y + deltaY;
+        // 获取 contentContainer 的缩放比例
+        const scale = this.contentContainer?.scale.x ?? 1;
+
+        // 更新对象位置（需要将屏幕坐标的 delta 转换为内容坐标系的 delta）
+        object.x = objectStartPosition.x + deltaX / scale;
+        object.y = objectStartPosition.y + deltaY / scale;
 
         // 如果对象被选中，更新变换控制器和边界框
         if (this.selector?.selected === object) {
@@ -338,11 +361,19 @@ export class Pixi2D {
 
     window.addEventListener("resize", this.onResize);
     window.addEventListener("keydown", this.onKeyDown);
+    window.addEventListener("keyup", this.onKeyUp);
 
     // 指针事件
     this.app.stage.on("pointerdown", this.onPointerDown);
     this.app.stage.on("pointerup", this.onPointerUp);
     this.app.stage.on("dblclick", this.onDoubleClick);
+
+    // 画布缩放和拖拽事件
+    this.app.canvas.addEventListener("wheel", this.onWheel, { passive: false });
+    this.app.canvas.addEventListener("pointerdown", this.onCanvasPointerDown);
+    this.app.canvas.addEventListener("pointermove", this.onCanvasPointerMove);
+    this.app.canvas.addEventListener("pointerup", this.onCanvasPointerUp);
+    this.app.canvas.addEventListener("pointerleave", this.onCanvasPointerUp);
   }
 
   /**
@@ -363,6 +394,17 @@ export class Pixi2D {
    */
   private onKeyDown = (event: KeyboardEvent): void => {
     const key = event.key.toLowerCase();
+    const code = event.code.toLowerCase();
+
+    // 空格键 - 启用画布拖拽模式
+    if (code === "space" && !this.isSpacePressed) {
+      this.isSpacePressed = true;
+      if (this.app?.canvas) {
+        this.app.canvas.style.cursor = "grab";
+      }
+      event.preventDefault();
+      return;
+    }
 
     // 变换模式快捷键
     if (key === "2") {
@@ -384,6 +426,119 @@ export class Pixi2D {
     if (key === "escape") {
       this.selector?.deselect();
       return;
+    }
+  };
+
+  /**
+   * 键盘释放事件
+   */
+  private onKeyUp = (event: KeyboardEvent): void => {
+    const code = event.code.toLowerCase();
+
+    // 空格键释放 - 禁用画布拖拽模式
+    if (code === "space") {
+      this.isSpacePressed = false;
+      this.isPanningCanvas = false;
+      if (this.app?.canvas) {
+        this.app.canvas.style.cursor = "default";
+      }
+    }
+  };
+
+  /**
+   * 鼠标滚轮事件 - 缩放画布
+   */
+  private onWheel = (event: WheelEvent): void => {
+    if (!this.contentContainer || !this.app) return;
+
+    event.preventDefault();
+
+    const rect = this.app.canvas.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+
+    // 计算缩放因子
+    const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+    const currentScale = this.contentContainer.scale.x;
+    let newScale = currentScale * zoomFactor;
+
+    // 限制缩放范围
+    newScale = Math.max(this.minZoom, Math.min(this.maxZoom, newScale));
+
+    if (newScale === currentScale) return;
+
+    // 计算缩放中心点（鼠标位置）
+    const worldPosBefore = {
+      x: (mouseX - this.contentContainer.x) / currentScale,
+      y: (mouseY - this.contentContainer.y) / currentScale,
+    };
+
+    // 应用新缩放
+    this.contentContainer.scale.set(newScale, newScale);
+
+    // 调整位置以保持鼠标位置不变
+    const worldPosAfter = {
+      x: (mouseX - this.contentContainer.x) / newScale,
+      y: (mouseY - this.contentContainer.y) / newScale,
+    };
+
+    this.contentContainer.x += (worldPosAfter.x - worldPosBefore.x) * newScale;
+    this.contentContainer.y += (worldPosAfter.y - worldPosBefore.y) * newScale;
+
+    // 更新选择器和变换器
+    if (this.selector?.selected) {
+      this.selector.refreshBoundingBox();
+      this.transformer?.updateControls();
+    }
+  };
+
+  /**
+   * 画布指针按下 - 开始拖拽画布
+   */
+  private onCanvasPointerDown = (event: PointerEvent): void => {
+    // 中键拖拽或空格+左键拖拽
+    if (event.button === 1 || (event.button === 0 && this.isSpacePressed)) {
+      this.isPanningCanvas = true;
+      this.panStartPosition = { x: event.clientX, y: event.clientY };
+      this.panStartCanvasPosition = {
+        x: this.contentContainer?.x ?? 0,
+        y: this.contentContainer?.y ?? 0,
+      };
+      if (this.app?.canvas) {
+        this.app.canvas.style.cursor = "grabbing";
+      }
+      event.preventDefault();
+    }
+  };
+
+  /**
+   * 画布指针移动 - 拖拽画布
+   */
+  private onCanvasPointerMove = (event: PointerEvent): void => {
+    if (!this.isPanningCanvas || !this.contentContainer) return;
+
+    const deltaX = event.clientX - this.panStartPosition.x;
+    const deltaY = event.clientY - this.panStartPosition.y;
+
+    this.contentContainer.x = this.panStartCanvasPosition.x + deltaX;
+    this.contentContainer.y = this.panStartCanvasPosition.y + deltaY;
+
+    // 更新选择器和变换器
+    if (this.selector?.selected) {
+      this.selector.refreshBoundingBox();
+      this.transformer?.updateControls();
+    }
+  };
+
+  /**
+   * 画布指针释放 - 结束拖拽画布
+   */
+  private onCanvasPointerUp = (event: PointerEvent): void => {
+    if (this.isPanningCanvas) {
+      this.isPanningCanvas = false;
+      if (this.app?.canvas) {
+        this.app.canvas.style.cursor = this.isSpacePressed ? "grab" : "default";
+      }
     }
   };
 
@@ -556,6 +711,157 @@ export class Pixi2D {
     }
   }
 
+  // ============ 画布缩放和平移 API ============
+
+  /**
+   * 获取当前缩放级别
+   */
+  getZoom(): number {
+    return this.contentContainer?.scale.x ?? 1;
+  }
+
+  /**
+   * 设置缩放级别
+   * @param zoom 缩放级别 (0.1 - 10)
+   * @param centerX 缩放中心 X（可选，默认为画布中心）
+   * @param centerY 缩放中心 Y（可选，默认为画布中心）
+   */
+  setZoom(zoom: number, centerX?: number, centerY?: number): void {
+    if (!this.contentContainer || !this.app) return;
+
+    const newScale = Math.max(this.minZoom, Math.min(this.maxZoom, zoom));
+    const currentScale = this.contentContainer.scale.x;
+
+    if (newScale === currentScale) return;
+
+    // 默认以画布中心为缩放中心
+    const cx = centerX ?? this.app.canvas.width / 2;
+    const cy = centerY ?? this.app.canvas.height / 2;
+
+    // 计算缩放中心点
+    const worldPosBefore = {
+      x: (cx - this.contentContainer.x) / currentScale,
+      y: (cy - this.contentContainer.y) / currentScale,
+    };
+
+    // 应用新缩放
+    this.contentContainer.scale.set(newScale, newScale);
+
+    // 调整位置以保持中心点不变
+    const worldPosAfter = {
+      x: (cx - this.contentContainer.x) / newScale,
+      y: (cy - this.contentContainer.y) / newScale,
+    };
+
+    this.contentContainer.x += (worldPosAfter.x - worldPosBefore.x) * newScale;
+    this.contentContainer.y += (worldPosAfter.y - worldPosBefore.y) * newScale;
+
+    // 更新选择器和变换器
+    if (this.selector?.selected) {
+      this.selector.refreshBoundingBox();
+      this.transformer?.updateControls();
+    }
+  }
+
+  /**
+   * 放大
+   * @param factor 放大因子，默认 1.2
+   */
+  zoomIn(factor: number = 1.2): void {
+    this.setZoom(this.getZoom() * factor);
+  }
+
+  /**
+   * 缩小
+   * @param factor 缩小因子，默认 0.8
+   */
+  zoomOut(factor: number = 0.8): void {
+    this.setZoom(this.getZoom() * factor);
+  }
+
+  /**
+   * 重置缩放到 100%
+   */
+  resetZoom(): void {
+    this.setZoom(1);
+  }
+
+  /**
+   * 获取画布平移位置
+   */
+  getPan(): { x: number; y: number } {
+    return {
+      x: this.contentContainer?.x ?? 0,
+      y: this.contentContainer?.y ?? 0,
+    };
+  }
+
+  /**
+   * 设置画布平移位置
+   */
+  setPan(x: number, y: number): void {
+    if (!this.contentContainer) return;
+
+    this.contentContainer.x = x;
+    this.contentContainer.y = y;
+
+    // 更新选择器和变换器
+    if (this.selector?.selected) {
+      this.selector.refreshBoundingBox();
+      this.transformer?.updateControls();
+    }
+  }
+
+  /**
+   * 重置画布位置到原点
+   */
+  resetPan(): void {
+    this.setPan(0, 0);
+  }
+
+  /**
+   * 重置视图（缩放和平移）
+   */
+  resetView(): void {
+    this.resetZoom();
+    this.resetPan();
+  }
+
+  /**
+   * 适应内容到视图
+   */
+  fitToView(padding: number = 50): void {
+    if (!this.contentContainer || !this.app) return;
+
+    // 获取内容边界
+    const bounds = this.contentContainer.getLocalBounds();
+    if (bounds.width === 0 || bounds.height === 0) return;
+
+    const canvasWidth = this.app.canvas.width;
+    const canvasHeight = this.app.canvas.height;
+
+    // 计算适合的缩放级别
+    const scaleX = (canvasWidth - padding * 2) / bounds.width;
+    const scaleY = (canvasHeight - padding * 2) / bounds.height;
+    const scale = Math.min(scaleX, scaleY, this.maxZoom);
+    const clampedScale = Math.max(this.minZoom, scale);
+
+    // 应用缩放
+    this.contentContainer.scale.set(clampedScale, clampedScale);
+
+    // 居中内容
+    const scaledWidth = bounds.width * clampedScale;
+    const scaledHeight = bounds.height * clampedScale;
+    this.contentContainer.x = (canvasWidth - scaledWidth) / 2 - bounds.x * clampedScale;
+    this.contentContainer.y = (canvasHeight - scaledHeight) / 2 - bounds.y * clampedScale;
+
+    // 更新选择器和变换器
+    if (this.selector?.selected) {
+      this.selector.refreshBoundingBox();
+      this.transformer?.updateControls();
+    }
+  }
+
   /**
    * 销毁 Pixi2D 实例
    */
@@ -563,6 +869,7 @@ export class Pixi2D {
     // 移除事件监听
     window.removeEventListener("resize", this.onResize);
     window.removeEventListener("keydown", this.onKeyDown);
+    window.removeEventListener("keyup", this.onKeyUp);
 
     // 清理回调
     this.sceneChangeCallbacks = [];
@@ -572,6 +879,13 @@ export class Pixi2D {
     this.transformer?.dispose();
 
     if (this.app) {
+      // 移除画布事件
+      this.app.canvas.removeEventListener("wheel", this.onWheel);
+      this.app.canvas.removeEventListener("pointerdown", this.onCanvasPointerDown);
+      this.app.canvas.removeEventListener("pointermove", this.onCanvasPointerMove);
+      this.app.canvas.removeEventListener("pointerup", this.onCanvasPointerUp);
+      this.app.canvas.removeEventListener("pointerleave", this.onCanvasPointerUp);
+
       // 移除 canvas
       if (this.app.canvas && this.app.canvas.parentNode) {
         this.app.canvas.parentNode.removeChild(this.app.canvas);
@@ -583,6 +897,8 @@ export class Pixi2D {
       });
       this.app = null;
     }
+
+    this.contentContainer = null;
   }
 }
 

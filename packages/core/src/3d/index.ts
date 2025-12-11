@@ -211,7 +211,7 @@ export class Three3D {
    * 根据 Object3D 获取节点 ID
    */
   private getNodeId(object: Object3D): string | null {
-    return (object as any).nodeId ?? null;
+    return object.userData?.nodeId ?? null;
   }
 
   /**
