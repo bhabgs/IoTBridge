@@ -296,24 +296,28 @@ export class NodeFactory2D {
 
   /**
    * 应用变换
+   * 注意：2D 是俯视图，坐标映射关系为：
+   * - SceneModel (3D): position.x -> 2D: x
+   * - SceneModel (3D): position.z -> 2D: y
+   * - SceneModel (3D): position.y 是高度，2D 中不显示
    */
   applyTransform(displayObject: Container, node: SceneNode) {
     const transform = node.transform;
     if (!transform) return;
 
-    // 设置位置
+    // 设置位置：3D 的 x/z 映射到 2D 的 x/y
     const pos = transform.position;
-    displayObject.position.set(pos.x, pos.y);
+    displayObject.position.set(pos.x, pos.z);
 
-    // 设置旋转（角度转弧度，2D 只使用 z 轴）
+    // 设置旋转（角度转弧度，2D 只使用 z 轴，对应 3D 的 y 轴旋转）
     if (transform.rotation) {
-      const rotZ = transform.rotation.z ?? 0;
-      displayObject.rotation = (rotZ * Math.PI) / 180;
+      const rotY = transform.rotation.y ?? 0;
+      displayObject.rotation = (rotY * Math.PI) / 180;
     }
 
     // 设置缩放
     if (transform.scale) {
-      displayObject.scale.set(transform.scale.x, transform.scale.y);
+      displayObject.scale.set(transform.scale.x, transform.scale.z);
     }
 
     // 设置锚点/中心点

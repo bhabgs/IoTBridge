@@ -1,5 +1,5 @@
 import { Application, Container, FederatedPointerEvent } from "pixi.js";
-import { SceneModel, SceneChangeEvent, SceneChangeCallback } from "../types";
+import { SceneModel, SceneChangeEvent, SceneChangeCallback, SceneNodeChanges } from "../types";
 import {
   Pixi2DOptions,
   TransformMode2D,
@@ -93,19 +93,26 @@ export class Pixi2D {
       // 触发数据变化事件
       const nodeId = this.getNodeId(event.object);
       if (nodeId) {
+        // 获取原始节点数据中的 y 值（高度）
+        const originalY = this.getNodeOriginalY(nodeId);
+        // 2D 坐标映射回 3D：
+        // - position: 2D的x -> 3D的x，2D的y -> 3D的z，保持3D的y不变
+        // - rotation: 2D的旋转 -> 3D的y轴旋转
+        // - scale: 2D的scaleX -> 3D的scaleX，2D的scaleY -> 3D的scaleZ，保持3D的scaleY不变
+        const originalScale = this.getNodeOriginalScale(nodeId);
         this.emitSceneChange({
           type: "transform",
           nodeId,
           changes: {
             transform: {
               position: event.position
-                ? { x: event.position.x, y: event.position.y, z: 0 }
+                ? { x: event.position.x, y: originalY, z: event.position.y }
                 : undefined,
               rotation: event.rotation !== undefined
-                ? { x: 0, y: 0, z: event.rotation }
+                ? { x: 0, y: event.rotation, z: 0 }
                 : undefined,
               scale: event.scale
-                ? { x: event.scale.x, y: event.scale.y, z: 1 }
+                ? { x: event.scale.x, y: originalScale.y, z: event.scale.y }
                 : undefined,
             },
           },
@@ -170,10 +177,17 @@ export class Pixi2D {
     const node = this.sceneModel.nodes[nodeIndex];
 
     if (event.type === "transform" && event.changes?.transform) {
-      node.transform = {
-        ...node.transform,
-        ...event.changes.transform,
-      };
+      const transformChanges = event.changes.transform;
+      // 只更新有值的字段
+      if (transformChanges.position) {
+        node.transform.position = transformChanges.position;
+      }
+      if (transformChanges.rotation) {
+        node.transform.rotation = transformChanges.rotation;
+      }
+      if (transformChanges.scale) {
+        node.transform.scale = transformChanges.scale;
+      }
     }
   }
 
@@ -182,6 +196,22 @@ export class Pixi2D {
    */
   private getNodeId(object: Container): string | null {
     return (object as any).nodeId ?? null;
+  }
+
+  /**
+   * 获取节点在 sceneModel 中的原始 Y 值（高度）
+   */
+  private getNodeOriginalY(nodeId: string): number {
+    const node = this.sceneModel.nodes.find((n) => n.id === nodeId);
+    return node?.transform.position.y ?? 0;
+  }
+
+  /**
+   * 获取节点在 sceneModel 中的原始 Scale 值
+   */
+  private getNodeOriginalScale(nodeId: string): { x: number; y: number; z: number } {
+    const node = this.sceneModel.nodes.find((n) => n.id === nodeId);
+    return node?.transform.scale ?? { x: 1, y: 1, z: 1 };
   }
 
   /**
@@ -259,12 +289,15 @@ export class Pixi2D {
               object.x !== objectStartPosition.x ||
               object.y !== objectStartPosition.y
             ) {
+              // 获取原始节点数据中的 y 值（高度）
+              const originalY = this.getNodeOriginalY(nodeId);
+              // 2D 坐标映射回 3D：2D的x -> 3D的x，2D的y -> 3D的z，保持3D的y不变
               this.emitSceneChange({
                 type: "transform",
                 nodeId,
                 changes: {
                   transform: {
-                    position: { x: object.x, y: object.y, z: 0 },
+                    position: { x: object.x, y: originalY, z: object.y },
                   },
                 },
               });

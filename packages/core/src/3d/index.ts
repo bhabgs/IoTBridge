@@ -1,12 +1,20 @@
 import { Scene, PerspectiveCamera, WebGLRenderer, Vector3, Object3D, Box3 } from "three";
 // @ts-ignore - Three.js examples don't have proper type declarations
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { SceneModel, SceneChangeEvent, SceneChangeCallback } from "../types";
+import { SceneModel, SceneChangeEvent, SceneChangeCallback, SceneNodeChanges } from "../types";
 import { Three3DOptions } from "./types";
 import { nodeFactory } from "./nodeFactory";
 import { setupScene } from "./sceneSetup";
 import { Selector, SelectionChangeCallback } from "./selector";
 import { Transformer, TransformMode, TransformSpace, TransformChangeEvent } from "./transformer";
+
+/** 像素到世界单位的转换比例：100px = 1 world unit */
+const SCALE = 0.01;
+
+/** 将世界单位转换回像素值 */
+function toPixelUnit(worldUnit: number): number {
+  return worldUnit / SCALE;
+}
 
 /**
  * Three3D - 3D 编辑器核心类
@@ -96,16 +104,25 @@ export class Three3D {
       // 触发数据变化事件
       const nodeId = this.getNodeId(event.object);
       if (nodeId) {
+        // 将世界单位转换回像素单位（position 需要转换，rotation 是弧度转角度，scale 不需要转换）
         this.emitSceneChange({
           type: "transform",
           nodeId,
           changes: {
             transform: {
               position: event.position
-                ? { x: event.position.x, y: event.position.y, z: event.position.z }
+                ? {
+                    x: toPixelUnit(event.position.x),
+                    y: toPixelUnit(event.position.y),
+                    z: toPixelUnit(event.position.z),
+                  }
                 : undefined,
               rotation: event.rotation
-                ? { x: event.rotation.x, y: event.rotation.y, z: event.rotation.z }
+                ? {
+                    x: (event.rotation.x * 180) / Math.PI,
+                    y: (event.rotation.y * 180) / Math.PI,
+                    z: (event.rotation.z * 180) / Math.PI,
+                  }
                 : undefined,
               scale: event.scale
                 ? { x: event.scale.x, y: event.scale.y, z: event.scale.z }
@@ -176,10 +193,17 @@ export class Three3D {
     const node = this.sceneModel.nodes[nodeIndex];
 
     if (event.type === "transform" && event.changes?.transform) {
-      node.transform = {
-        ...node.transform,
-        ...event.changes.transform,
-      };
+      const transformChanges = event.changes.transform;
+      // 只更新有值的字段
+      if (transformChanges.position) {
+        node.transform.position = transformChanges.position;
+      }
+      if (transformChanges.rotation) {
+        node.transform.rotation = transformChanges.rotation;
+      }
+      if (transformChanges.scale) {
+        node.transform.scale = transformChanges.scale;
+      }
     }
   }
 

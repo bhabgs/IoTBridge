@@ -39,6 +39,7 @@ export type {
   SceneChangeType,
   SceneChangeEvent,
   SceneChangeCallback,
+  SceneNodeChanges,
 } from "./types";
 
 // SDK 只支持 "2d" 和 "3d" 模式
@@ -281,10 +282,17 @@ class IndustrialConfigSDK {
     const node = this.sceneModel.nodes[nodeIndex];
 
     if (event.type === "transform" && event.changes?.transform) {
-      node.transform = {
-        ...node.transform,
-        ...event.changes.transform,
-      };
+      const transformChanges = event.changes.transform;
+      // 只更新有值的字段
+      if (transformChanges.position) {
+        node.transform.position = transformChanges.position;
+      }
+      if (transformChanges.rotation) {
+        node.transform.rotation = transformChanges.rotation;
+      }
+      if (transformChanges.scale) {
+        node.transform.scale = transformChanges.scale;
+      }
     }
   }
 

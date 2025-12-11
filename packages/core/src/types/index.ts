@@ -756,6 +756,19 @@ export interface SelectionState {
 /**--------- 场景数据变化事件 ---------*/
 export type SceneChangeType = "transform" | "geometry" | "material" | "style" | "add" | "remove" | "reorder";
 
+/** 场景节点变化数据（支持部分更新） */
+export interface SceneNodeChanges {
+  transform?: Partial<NodeTransform>;
+  geometry?: Partial<NodeGeometry>;
+  material?: Partial<NodeMaterial>;
+  style?: Partial<NodeStyle>;
+  visible?: boolean;
+  locked?: boolean;
+  opacity?: number;
+  zIndex?: number;
+  name?: string;
+}
+
 export interface SceneChangeEvent {
   /** 变化类型 */
   type: SceneChangeType;
@@ -764,7 +777,7 @@ export interface SceneChangeEvent {
   /** 变化的节点数据（更新后的完整节点或部分数据） */
   node?: SceneNode;
   /** 变化的具体字段（可选，用于细粒度更新） */
-  changes?: Partial<SceneNode>;
+  changes?: SceneNodeChanges;
 }
 
 /** 场景数据变化回调 */
