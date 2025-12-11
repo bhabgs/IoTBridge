@@ -222,21 +222,39 @@ export class Pixi2D {
     // 添加到 sceneModel
     this.sceneModel.nodes.push(node);
 
-    // 创建 DisplayObject 并添加到场景
-    if (this.contentContainer) {
+    // 如果 Pixi 已初始化，直接创建 DisplayObject
+    if (this.app && this.contentContainer) {
       const displayObject = nodeFactory2D.createDisplayObject(node);
       if (displayObject) {
         this.contentContainer.addChild(displayObject);
         this.enableDrag(displayObject);
       }
+      // 触发变化事件
+      this.emitSceneChange({
+        type: "add",
+        nodeId: node.id,
+        node: node,
+      });
+    } else {
+      // 如果还没初始化完成，等待初始化后再创建 DisplayObject
+      this.initPromise.then(() => {
+        // 检查节点是否已经被渲染（loadNodes 可能已经处理了）
+        const existing = this.findDisplayObjectByNodeId(node.id);
+        if (!existing && this.contentContainer) {
+          const displayObject = nodeFactory2D.createDisplayObject(node);
+          if (displayObject) {
+            this.contentContainer.addChild(displayObject);
+            this.enableDrag(displayObject);
+          }
+        }
+        // 触发变化事件
+        this.emitSceneChange({
+          type: "add",
+          nodeId: node.id,
+          node: node,
+        });
+      });
     }
-
-    // 触发变化事件
-    this.emitSceneChange({
-      type: "add",
-      nodeId: node.id,
-      node: node,
-    });
 
     return node.id;
   }

@@ -22,6 +22,8 @@ interface EditorContextType {
   deleteNode: (nodeId: string) => boolean
   /** 获取所有节点 */
   getNodes: () => SceneNode[]
+  /** 节点版本号，用于触发依赖节点列表的组件重渲染 */
+  nodesVersion: number
   /** 当前渲染模式 */
   currentMode: '2D' | '3D'
   /** 设置渲染模式 */
@@ -46,8 +48,11 @@ export const EditorProvider = ({ children }: EditorProviderProps) => {
   const sdkRef = useRef<InstanceType<typeof IndustrialConfigSDK> | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [currentMode, setCurrentMode] = useState<'2D' | '3D'>('2D')
-  // 用于触发重渲染
-  const [, forceUpdate] = useState({})
+  // 节点版本号，用于触发依赖节点列表的组件重渲染
+  const [nodesVersion, setNodesVersion] = useState(0)
+  // 使用 ref 来跟踪 selectedNodeId，避免 setSDK 依赖变化
+  const selectedNodeIdRef = useRef<string | null>(null)
+  selectedNodeIdRef.current = selectedNodeId
 
   const setSDK = useCallback((sdk: InstanceType<typeof IndustrialConfigSDK> | null) => {
     sdkRef.current = sdk
@@ -56,14 +61,16 @@ export const EditorProvider = ({ children }: EditorProviderProps) => {
       // 监听场景变化事件
       sdk.onSceneChange((event: SceneChangeEvent) => {
         // 处理节点删除
-        if (event.type === 'remove' && event.nodeId === selectedNodeId) {
+        if (event.type === 'remove' && event.nodeId === selectedNodeIdRef.current) {
           setSelectedNodeId(null)
         }
-        // 触发重渲染以同步属性面板
-        forceUpdate({})
+        // 节点增删时更新版本号
+        if (event.type === 'add' || event.type === 'remove') {
+          setNodesVersion((v) => v + 1)
+        }
       })
     }
-  }, [selectedNodeId])
+  }, []) // 移除 selectedNodeId 依赖，使用 ref 代替
 
   const selectNode = useCallback((nodeId: string | null) => {
     setSelectedNodeId(nodeId)
@@ -87,21 +94,17 @@ export const EditorProvider = ({ children }: EditorProviderProps) => {
 
   const updateNode = useCallback((nodeId: string, updates: Partial<SceneNode>): boolean => {
     if (!sdkRef.current) return false
-    const result = sdkRef.current.updateNode(nodeId, updates)
-    if (result) {
-      forceUpdate({})
-    }
-    return result
+    return sdkRef.current.updateNode(nodeId, updates)
   }, [])
 
   const deleteNode = useCallback((nodeId: string): boolean => {
     if (!sdkRef.current) return false
     const result = sdkRef.current.removeNode(nodeId)
-    if (result && selectedNodeId === nodeId) {
+    if (result && selectedNodeIdRef.current === nodeId) {
       setSelectedNodeId(null)
     }
     return result
-  }, [selectedNodeId])
+  }, []) // 移除 selectedNodeId 依赖，使用 ref 代替
 
   const getNodes = useCallback((): SceneNode[] => {
     if (!sdkRef.current) return []
@@ -120,6 +123,7 @@ export const EditorProvider = ({ children }: EditorProviderProps) => {
         updateNode,
         deleteNode,
         getNodes,
+        nodesVersion,
         currentMode,
         setCurrentMode
       }}

@@ -115,7 +115,7 @@ const Canvas = ({ className, defaultRunMode = 'edit' }: CanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const { sdkRef, setSDK, selectNode, addNode, currentMode, setCurrentMode } = useEditor()
 
-  // 初始化 SDK
+  // 初始化 SDK - 只在组件挂载时执行一次
   useEffect(() => {
     if (!containerRef.current) return
 
@@ -151,7 +151,8 @@ const Canvas = ({ className, defaultRunMode = 'edit' }: CanvasProps) => {
       sdk.dispose()
       setSDK(null)
     }
-  }, [setSDK, selectNode, setCurrentMode])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // 只在组件挂载时执行一次，不依赖任何 callback
 
   // 切换模式
   const handleModeSwitch = useCallback(

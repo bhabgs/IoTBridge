@@ -37,10 +37,10 @@ interface ComponentGroup {
 
 const Toolbox = ({ className }: { className?: string }) => {
   const { t } = useTranslation()
-  const { selectedNodeId, selectNode, deleteNode, getNodes, addNode } = useEditor()
+  const { selectedNodeId, selectNode, deleteNode, getNodes, addNode, nodesVersion } = useEditor()
 
-  // 获取节点列表
-  const nodes = useMemo(() => getNodes(), [getNodes])
+  // 获取节点列表，依赖 nodesVersion 确保节点变化时重新获取
+  const nodes = useMemo(() => getNodes(), [getNodes, nodesVersion])
 
   // 组件分组数据
   const componentGroups: ComponentGroup[] = [
