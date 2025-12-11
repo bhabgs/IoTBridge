@@ -2,7 +2,32 @@ import { SceneMode, SceneModel, SceneChangeEvent, SceneChangeCallback, ViewportS
 import { Pixi2D } from "./2d";
 import { Three3D } from "./3d";
 
-// 导出 3D 选择和编辑相关类型
+// ============ 共享模块导出 ============
+export {
+  EventEmitter,
+  CoordinateSystem,
+  DEFAULT_COLORS,
+  DEFAULT_SIZES,
+  ZOOM_LIMITS,
+  INTERACTION_THRESHOLDS,
+  ANIMATION,
+  HOTKEYS,
+  COLOR_NAME_MAP,
+} from "./shared";
+
+export type {
+  BaseRendererOptions,
+  ISelector,
+  ITransformer,
+  INodeFactory,
+  IRenderer,
+  TransformMode as BaseTransformMode,
+  TransformSpace as BaseTransformSpace,
+  PointerPosition,
+  TransformState,
+} from "./shared";
+
+// ============ 3D 模块导出 ============
 export {
   Selector,
   SelectionChangeCallback,
@@ -17,7 +42,7 @@ export {
 } from "./3d/transformer";
 export { Three3D } from "./3d";
 
-// 导出 2D 选择和编辑相关类型
+// ============ 2D 模块导出 ============
 export {
   Pixi2D,
   Selector2D,
@@ -34,7 +59,7 @@ export {
   TransformChangeEvent2D,
 } from "./2d";
 
-// 导出场景数据变化相关类型
+// ============ 类型导出 ============
 export type {
   SceneChangeType,
   SceneChangeEvent,
@@ -46,6 +71,16 @@ export type {
   SceneNode,
   SceneModel,
   NodeType,
+  NodeTransform,
+  NodeGeometry,
+  NodeMaterial,
+  NodeStyle,
+  Vec2,
+  Vec3,
+  Vec4,
+  ColorValue,
+  GradientFill,
+  SceneMode,
 } from "./types";
 
 // SDK 只支持 "2d" 和 "3d" 模式
