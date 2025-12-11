@@ -1,4 +1,4 @@
-import { SceneMode, SceneModel, SceneChangeEvent, SceneChangeCallback } from "./types";
+import { SceneMode, SceneModel, SceneChangeEvent, SceneChangeCallback, ViewportState, ViewportState2D, ViewportState3D, SceneNode } from "./types";
 import { Pixi2D } from "./2d";
 import { Three3D } from "./3d";
 
@@ -40,6 +40,12 @@ export type {
   SceneChangeEvent,
   SceneChangeCallback,
   SceneNodeChanges,
+  ViewportState,
+  ViewportState2D,
+  ViewportState3D,
+  SceneNode,
+  SceneModel,
+  NodeType,
 } from "./types";
 
 // SDK 只支持 "2d" 和 "3d" 模式
@@ -100,6 +106,8 @@ class IndustrialConfigSDK {
   private onSceneChangeCallback?: SceneChangeCallback;
   /** 内部场景变化处理器 */
   private sceneChangeHandler: SceneChangeCallback;
+  /** 视口状态缓存 - 用于在切换模式时保持视图状态 */
+  private viewportStateCache: ViewportState = {};
 
   constructor(options: SDKOptions) {
     const { container, sceneModel, onModeChange, onSceneChange } = options;
@@ -205,10 +213,18 @@ class IndustrialConfigSDK {
     }
 
     const previousMode = this.sceneModel.sceneMode;
+
+    // 保存当前视口状态
+    this.saveCurrentViewportState();
+
     this.sceneModel.sceneMode = sceneMode;
 
     try {
       this.init();
+
+      // 恢复目标模式的视口状态
+      this.restoreViewportState(sceneMode);
+
       // 触发模式变化回调
       this.onModeChange?.(sceneMode);
     } catch (error) {
@@ -217,6 +233,65 @@ class IndustrialConfigSDK {
       console.error(`Failed to switch to ${sceneMode} mode:`, error);
       throw error;
     }
+  }
+
+  /**
+   * 保存当前视口状态到缓存
+   */
+  private saveCurrentViewportState(): void {
+    if (!this.target) return;
+
+    const currentMode = this.sceneModel.sceneMode;
+
+    if (currentMode === "2d" && this.target instanceof Pixi2D) {
+      this.viewportStateCache.viewport2D = this.target.getViewportState();
+    } else if (currentMode === "3d" && this.target instanceof Three3D) {
+      this.viewportStateCache.viewport3D = this.target.getViewportState();
+    }
+  }
+
+  /**
+   * 恢复指定模式的视口状态
+   */
+  private restoreViewportState(mode: SceneMode): void {
+    if (!this.target) return;
+
+    if (mode === "2d" && this.target instanceof Pixi2D) {
+      const state = this.viewportStateCache.viewport2D;
+      if (state) {
+        this.target.setViewportState(state);
+      }
+    } else if (mode === "3d" && this.target instanceof Three3D) {
+      const state = this.viewportStateCache.viewport3D;
+      if (state) {
+        this.target.setViewportState(state);
+      }
+    }
+  }
+
+  /**
+   * 获取当前视口状态
+   */
+  getViewportState(): ViewportState {
+    // 先保存当前状态
+    this.saveCurrentViewportState();
+    return { ...this.viewportStateCache };
+  }
+
+  /**
+   * 设置视口状态（同时设置 2D 和 3D 状态缓存）
+   */
+  setViewportState(state: ViewportState): void {
+    if (state.viewport2D) {
+      this.viewportStateCache.viewport2D = state.viewport2D;
+    }
+    if (state.viewport3D) {
+      this.viewportStateCache.viewport3D = state.viewport3D;
+    }
+
+    // 如果当前渲染器存在，立即应用对应的状态
+    const currentMode = this.sceneModel.sceneMode;
+    this.restoreViewportState(currentMode as SceneMode);
   }
 
   /**
@@ -302,6 +377,89 @@ class IndustrialConfigSDK {
    */
   onSceneChange(callback: SceneChangeCallback): void {
     this.onSceneChangeCallback = callback;
+  }
+
+  // ============ 节点管理方法（代理到渲染器） ============
+
+  /**
+   * 添加节点到场景
+   * @param node 节点数据
+   * @returns 添加的节点 ID
+   */
+  addNode(node: SceneNode): string | null {
+    if (this.target instanceof Pixi2D) {
+      return this.target.addNode(node);
+    }
+    // TODO: 支持 Three3D
+    console.warn("addNode is only supported in 2D mode currently");
+    return null;
+  }
+
+  /**
+   * 移除节点
+   * @param nodeId 节点 ID
+   */
+  removeNode(nodeId: string): boolean {
+    if (this.target instanceof Pixi2D) {
+      return this.target.removeNode(nodeId);
+    }
+    // TODO: 支持 Three3D
+    console.warn("removeNode is only supported in 2D mode currently");
+    return false;
+  }
+
+  /**
+   * 更新节点属性
+   * @param nodeId 节点 ID
+   * @param updates 更新的属性
+   */
+  updateNode(nodeId: string, updates: Partial<SceneNode>): boolean {
+    if (this.target instanceof Pixi2D) {
+      return this.target.updateNode(nodeId, updates);
+    }
+    // TODO: 支持 Three3D
+    console.warn("updateNode is only supported in 2D mode currently");
+    return false;
+  }
+
+  /**
+   * 获取节点数据
+   * @param nodeId 节点 ID
+   */
+  getNode(nodeId: string): SceneNode | null {
+    if (this.target instanceof Pixi2D) {
+      return this.target.getNode(nodeId);
+    }
+    // 直接从 sceneModel 获取
+    return this.sceneModel.nodes.find((n) => n.id === nodeId) || null;
+  }
+
+  /**
+   * 获取所有节点
+   */
+  getNodes(): SceneNode[] {
+    return [...this.sceneModel.nodes];
+  }
+
+  /**
+   * 获取当前选中的节点 ID
+   */
+  getSelectedNodeId(): string | null {
+    if (this.target instanceof Pixi2D) {
+      return this.target.getSelectedNodeId();
+    }
+    // TODO: 支持 Three3D
+    return null;
+  }
+
+  /**
+   * 通过节点 ID 选中节点
+   */
+  selectNodeById(nodeId: string | null): void {
+    if (this.target instanceof Pixi2D) {
+      this.target.selectNodeById(nodeId);
+    }
+    // TODO: 支持 Three3D
   }
 
   /**

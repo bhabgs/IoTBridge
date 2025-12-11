@@ -1,37 +1,41 @@
-export default {
+import type { SceneModel } from 'core'
+
+const data: SceneModel = {
   id: '1',
   version: '1.0.0',
-  sceneMode: '3d',
+  sceneMode: '2d',
   nodes: [
-    // 两个矩形
+    // 初始两个矩形
     {
-      id: '1',
+      id: 'rect-1',
       type: 'rect',
+      name: '矩形1',
       transform: {
-        position: { x: 0, y: 50, z: 0 }
+        position: { x: 100, y: 0, z: 100 }
       },
       geometry: {
         width: 100,
         height: 100,
-        depth: 100
+        depth: 10
       },
       material: {
-        color: 'yellow'
+        color: '#4A90D9'
       }
     },
     {
-      id: '2',
+      id: 'rect-2',
       type: 'rect',
+      name: '矩形2',
       transform: {
-        position: { x: 150, y: 50, z: 0 }
+        position: { x: 250, y: 0, z: 100 }
       },
       geometry: {
-        width: 100,
-        height: 100,
-        depth: 100
+        width: 80,
+        height: 80,
+        depth: 10
       },
       material: {
-        color: 'green'
+        color: '#67C23A'
       }
     }
   ],
@@ -39,3 +43,5 @@ export default {
   symbols: [],
   meta: {}
 }
+
+export default data

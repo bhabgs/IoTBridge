@@ -13,13 +13,13 @@ import {
   CopyOutlined,
   MoreOutlined,
   BorderOutlined,
-  ArrowRightOutlined,
   LineOutlined,
   FileTextOutlined
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
-import { useState } from 'react'
-import { useEditor, CanvasElement } from '../../context/EditorContext'
+import { useState, useMemo } from 'react'
+import { useEditor } from '../../context/EditorContext'
+import type { SceneNode } from 'core'
 import styles from './index.module.less'
 
 interface ComponentItem {
@@ -37,7 +37,10 @@ interface ComponentGroup {
 
 const Toolbox = ({ className }: { className?: string }) => {
   const { t } = useTranslation()
-  const { elements, selectedElementId, selectElement, deleteElement, addElement } = useEditor()
+  const { selectedNodeId, selectNode, deleteNode, getNodes, addNode } = useEditor()
+
+  // 获取节点列表
+  const nodes = useMemo(() => getNodes(), [getNodes])
 
   // 组件分组数据
   const componentGroups: ComponentGroup[] = [
@@ -90,25 +93,24 @@ const Toolbox = ({ className }: { className?: string }) => {
     }
   ]
 
-  // 将画布元素转换为树形结构数据
-  const convertElementsToTreeData = (elements: CanvasElement[]): TreeDataNode[] => {
-    return elements.map((element) => {
+  // 将场景节点转换为树形结构数据
+  const convertNodesToTreeData = (nodes: SceneNode[]): TreeDataNode[] => {
+    return nodes.map((node) => {
       const getIcon = () => {
-        switch (element.type) {
+        switch (node.type) {
           case 'rect':
             return <BorderOutlined />
           case 'circle':
             return <div className={styles.circleIcon} />
+          case 'ellipse':
+            return <div className={styles.circleIcon} />
           case 'polygon':
             return <div className={styles.polygonIcon} />
-          case 'arrow':
-            return <ArrowRightOutlined />
           case 'line':
+          case 'polyline':
             return <LineOutlined />
           case 'text':
             return <FileTextOutlined />
-          case 'component':
-            return <DatabaseOutlined />
           default:
             return <DatabaseOutlined />
         }
@@ -138,14 +140,23 @@ const Toolbox = ({ className }: { className?: string }) => {
 
       const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
         if (key === 'delete') {
-          deleteElement(element.id)
+          deleteNode(node.id)
         } else if (key === 'copy') {
-          addElement({
-            ...element,
-            name: `${element.name} (副本)`,
-            x: element.x + 20,
-            y: element.y + 20
-          })
+          // 复制节点
+          const newNode: SceneNode = {
+            ...node,
+            id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name: `${node.name || node.type} (副本)`,
+            transform: {
+              ...node.transform,
+              position: {
+                x: (node.transform?.position?.x ?? 0) + 20,
+                y: node.transform?.position?.y ?? 0,
+                z: (node.transform?.position?.z ?? 0) + 20
+              }
+            }
+          }
+          addNode(newNode)
         }
       }
 
@@ -154,7 +165,7 @@ const Toolbox = ({ className }: { className?: string }) => {
           <div className={styles.treeNodeTitle}>
             <span className={styles.treeNodeContent}>
               {getIcon()}
-              <span className={styles.treeNodeLabel}>{element.name || element.type}</span>
+              <span className={styles.treeNodeLabel}>{node.name || node.type}</span>
             </span>
             <Dropdown menu={{ items: menuItems, onClick: handleMenuClick }} trigger={['click']}>
               <Button
@@ -167,14 +178,14 @@ const Toolbox = ({ className }: { className?: string }) => {
             </Dropdown>
           </div>
         ),
-        key: element.id,
-        children: element.children ? convertElementsToTreeData(element.children) : undefined,
-        isLeaf: !element.children || element.children.length === 0
+        key: node.id,
+        children: node.children ? convertNodesToTreeData(node.children) : undefined,
+        isLeaf: !node.children || node.children.length === 0
       }
     })
   }
 
-  const treeData: TreeDataNode[] = convertElementsToTreeData(elements)
+  const treeData: TreeDataNode[] = convertNodesToTreeData(nodes)
 
   // 默认展开所有分组
   const [expandedGroups, setExpandedGroups] = useState<string[]>(
@@ -257,7 +268,7 @@ const Toolbox = ({ className }: { className?: string }) => {
 
   // 树形结构渲染 - 显示画布元素层级
   const renderTree = () => {
-    if (elements.length === 0) {
+    if (nodes.length === 0) {
       return (
         <div className={styles.treeContent}>
           <Empty
@@ -273,14 +284,14 @@ const Toolbox = ({ className }: { className?: string }) => {
       <div className={styles.treeContent}>
         <Tree
           treeData={treeData}
-          selectedKeys={selectedElementId ? [selectedElementId] : []}
+          selectedKeys={selectedNodeId ? [selectedNodeId] : []}
           defaultExpandAll
           showIcon
           onSelect={(selectedKeys) => {
             if (selectedKeys.length > 0) {
-              selectElement(selectedKeys[0] as string)
+              selectNode(selectedKeys[0] as string)
             } else {
-              selectElement(null)
+              selectNode(null)
             }
           }}
           blockNode

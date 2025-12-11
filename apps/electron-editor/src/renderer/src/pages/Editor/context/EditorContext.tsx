@@ -1,26 +1,31 @@
-import { createContext, useContext, useState, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react'
+import type IndustrialConfigSDK from 'core'
+import type { SceneNode, SceneChangeEvent } from 'core'
 
-export interface CanvasElement {
-  id: string
-  type: 'rect' | 'circle' | 'polygon' | 'arrow' | 'line' | 'text' | 'component'
-  name: string
-  x: number
-  y: number
-  width: number
-  height: number
-  children?: CanvasElement[]
-  componentType?: string // 组件类型，如 'pump', 'valve' 等
-  [key: string]: any // 其他属性
-}
-
+/** 编辑器上下文类型 */
 interface EditorContextType {
-  elements: CanvasElement[]
-  selectedElementId: string | null
-  addElement: (element: Partial<CanvasElement> & Pick<CanvasElement, 'type' | 'name' | 'x' | 'y' | 'width' | 'height'>) => void
-  updateElement: (id: string, updates: Partial<CanvasElement>) => void
-  deleteElement: (id: string) => void
-  selectElement: (id: string | null) => void
-  getSelectedElement: () => CanvasElement | null
+  /** SDK 实例引用 */
+  sdkRef: React.MutableRefObject<InstanceType<typeof IndustrialConfigSDK> | null>
+  /** 设置 SDK 实例 */
+  setSDK: (sdk: InstanceType<typeof IndustrialConfigSDK> | null) => void
+  /** 当前选中的节点 ID */
+  selectedNodeId: string | null
+  /** 选中节点 */
+  selectNode: (nodeId: string | null) => void
+  /** 获取选中的节点数据 */
+  getSelectedNode: () => SceneNode | null
+  /** 添加节点 */
+  addNode: (node: SceneNode) => string | null
+  /** 更新节点 */
+  updateNode: (nodeId: string, updates: Partial<SceneNode>) => boolean
+  /** 删除节点 */
+  deleteNode: (nodeId: string) => boolean
+  /** 获取所有节点 */
+  getNodes: () => SceneNode[]
+  /** 当前渲染模式 */
+  currentMode: '2D' | '3D'
+  /** 设置渲染模式 */
+  setCurrentMode: (mode: '2D' | '3D') => void
 }
 
 const EditorContext = createContext<EditorContextType | null>(null)
@@ -38,53 +43,88 @@ interface EditorProviderProps {
 }
 
 export const EditorProvider = ({ children }: EditorProviderProps) => {
-  const [elements, setElements] = useState<CanvasElement[]>([])
-  const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
+  const sdkRef = useRef<InstanceType<typeof IndustrialConfigSDK> | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [currentMode, setCurrentMode] = useState<'2D' | '3D'>('2D')
+  // 用于触发重渲染
+  const [, forceUpdate] = useState({})
 
-  const addElement = (element: Partial<CanvasElement> & Pick<CanvasElement, 'type' | 'name' | 'x' | 'y' | 'width' | 'height'>) => {
-    const newElement: CanvasElement = {
-      ...element,
-      id: `element-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    } as CanvasElement
-    setElements((prev) => [...prev, newElement])
-    setSelectedElementId(newElement.id)
-  }
+  const setSDK = useCallback((sdk: InstanceType<typeof IndustrialConfigSDK> | null) => {
+    sdkRef.current = sdk
 
-  const updateElement = (id: string, updates: Partial<CanvasElement>) => {
-    setElements((prev) =>
-      prev.map((el) => (el.id === id ? { ...el, ...updates } : el))
-    )
-  }
-
-  const deleteElement = (id: string) => {
-    setElements((prev) => prev.filter((el) => el.id !== id))
-    if (selectedElementId === id) {
-      setSelectedElementId(null)
+    if (sdk) {
+      // 监听场景变化事件
+      sdk.onSceneChange((event: SceneChangeEvent) => {
+        // 处理节点删除
+        if (event.type === 'remove' && event.nodeId === selectedNodeId) {
+          setSelectedNodeId(null)
+        }
+        // 触发重渲染以同步属性面板
+        forceUpdate({})
+      })
     }
-  }
+  }, [selectedNodeId])
 
-  const selectElement = (id: string | null) => {
-    setSelectedElementId(id)
-  }
+  const selectNode = useCallback((nodeId: string | null) => {
+    setSelectedNodeId(nodeId)
+    // 同步到 SDK
+    sdkRef.current?.selectNodeById(nodeId)
+  }, [])
 
-  const getSelectedElement = (): CanvasElement | null => {
-    return elements.find((el) => el.id === selectedElementId) || null
-  }
+  const getSelectedNode = useCallback((): SceneNode | null => {
+    if (!selectedNodeId || !sdkRef.current) return null
+    return sdkRef.current.getNode(selectedNodeId)
+  }, [selectedNodeId])
+
+  const addNode = useCallback((node: SceneNode): string | null => {
+    if (!sdkRef.current) return null
+    const nodeId = sdkRef.current.addNode(node)
+    if (nodeId) {
+      setSelectedNodeId(nodeId)
+    }
+    return nodeId
+  }, [])
+
+  const updateNode = useCallback((nodeId: string, updates: Partial<SceneNode>): boolean => {
+    if (!sdkRef.current) return false
+    const result = sdkRef.current.updateNode(nodeId, updates)
+    if (result) {
+      forceUpdate({})
+    }
+    return result
+  }, [])
+
+  const deleteNode = useCallback((nodeId: string): boolean => {
+    if (!sdkRef.current) return false
+    const result = sdkRef.current.removeNode(nodeId)
+    if (result && selectedNodeId === nodeId) {
+      setSelectedNodeId(null)
+    }
+    return result
+  }, [selectedNodeId])
+
+  const getNodes = useCallback((): SceneNode[] => {
+    if (!sdkRef.current) return []
+    return sdkRef.current.getNodes()
+  }, [])
 
   return (
     <EditorContext.Provider
       value={{
-        elements,
-        selectedElementId,
-        addElement,
-        updateElement,
-        deleteElement,
-        selectElement,
-        getSelectedElement
+        sdkRef,
+        setSDK,
+        selectedNodeId,
+        selectNode,
+        getSelectedNode,
+        addNode,
+        updateNode,
+        deleteNode,
+        getNodes,
+        currentMode,
+        setCurrentMode
       }}
     >
       {children}
     </EditorContext.Provider>
   )
 }
-

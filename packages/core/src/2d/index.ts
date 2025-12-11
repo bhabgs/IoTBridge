@@ -1,5 +1,5 @@
 import { Application, Container, FederatedPointerEvent } from "pixi.js";
-import { SceneModel, SceneChangeEvent, SceneChangeCallback, SceneNodeChanges } from "../types";
+import { SceneModel, SceneChangeEvent, SceneChangeCallback, SceneNodeChanges, ViewportState2D, SceneNode } from "../types";
 import {
   Pixi2DOptions,
   TransformMode2D,
@@ -208,6 +208,185 @@ export class Pixi2D {
       if (transformChanges.scale) {
         node.transform.scale = transformChanges.scale;
       }
+    }
+  }
+
+  // ============ 节点管理方法 ============
+
+  /**
+   * 添加节点到场景
+   * @param node 节点数据
+   * @returns 添加的节点 ID
+   */
+  addNode(node: SceneNode): string {
+    // 添加到 sceneModel
+    this.sceneModel.nodes.push(node);
+
+    // 创建 DisplayObject 并添加到场景
+    if (this.contentContainer) {
+      const displayObject = nodeFactory2D.createDisplayObject(node);
+      if (displayObject) {
+        this.contentContainer.addChild(displayObject);
+        this.enableDrag(displayObject);
+      }
+    }
+
+    // 触发变化事件
+    this.emitSceneChange({
+      type: "add",
+      nodeId: node.id,
+      node: node,
+    });
+
+    return node.id;
+  }
+
+  /**
+   * 移除节点
+   * @param nodeId 节点 ID
+   */
+  removeNode(nodeId: string): boolean {
+    // 从 sceneModel 中移除
+    const nodeIndex = this.sceneModel.nodes.findIndex((n) => n.id === nodeId);
+    if (nodeIndex === -1) return false;
+
+    const removedNode = this.sceneModel.nodes.splice(nodeIndex, 1)[0];
+
+    // 从场景中移除 DisplayObject
+    if (this.contentContainer) {
+      const displayObject = this.findDisplayObjectByNodeId(nodeId);
+      if (displayObject) {
+        // 如果是当前选中的，先取消选择
+        if (this.selector?.selected === displayObject) {
+          this.selector.deselect();
+          this.transformer?.detach();
+        }
+        this.contentContainer.removeChild(displayObject);
+        displayObject.destroy();
+      }
+    }
+
+    // 触发变化事件
+    this.emitSceneChange({
+      type: "remove",
+      nodeId: nodeId,
+      node: removedNode,
+    });
+
+    return true;
+  }
+
+  /**
+   * 更新节点属性
+   * @param nodeId 节点 ID
+   * @param updates 更新的属性
+   */
+  updateNode(nodeId: string, updates: Partial<SceneNode>): boolean {
+    const node = this.sceneModel.nodes.find((n) => n.id === nodeId);
+    if (!node) return false;
+
+    // 更新 sceneModel 中的节点
+    Object.assign(node, updates);
+
+    // 更新 DisplayObject
+    if (this.contentContainer) {
+      const displayObject = this.findDisplayObjectByNodeId(nodeId);
+      if (displayObject) {
+        // 更新位置
+        if (updates.transform?.position) {
+          displayObject.position.set(
+            updates.transform.position.x,
+            updates.transform.position.z
+          );
+        }
+        // 更新旋转
+        if (updates.transform?.rotation) {
+          displayObject.rotation = (updates.transform.rotation.y * Math.PI) / 180;
+        }
+        // 更新缩放
+        if (updates.transform?.scale) {
+          displayObject.scale.set(
+            updates.transform.scale.x,
+            updates.transform.scale.z
+          );
+        }
+
+        // 刷新选择框和变换控制器
+        if (this.selector?.selected === displayObject) {
+          this.selector.refreshBoundingBox();
+          this.transformer?.updateControls();
+        }
+      }
+    }
+
+    // 构建变化事件
+    const changes: SceneNodeChanges = {};
+    if (updates.transform) changes.transform = updates.transform;
+    if (updates.geometry) changes.geometry = updates.geometry;
+    if (updates.material) changes.material = updates.material;
+    if (updates.style) changes.style = updates.style;
+
+    this.emitSceneChange({
+      type: "transform",
+      nodeId: nodeId,
+      node: node,
+      changes: changes,
+    });
+
+    return true;
+  }
+
+  /**
+   * 获取节点数据
+   * @param nodeId 节点 ID
+   */
+  getNode(nodeId: string): SceneNode | null {
+    return this.sceneModel.nodes.find((n) => n.id === nodeId) || null;
+  }
+
+  /**
+   * 获取所有节点
+   */
+  getNodes(): SceneNode[] {
+    return [...this.sceneModel.nodes];
+  }
+
+  /**
+   * 通过节点 ID 查找 DisplayObject
+   */
+  private findDisplayObjectByNodeId(nodeId: string): Container | null {
+    if (!this.contentContainer) return null;
+
+    for (const child of this.contentContainer.children) {
+      if (child instanceof Container && (child as any).nodeId === nodeId) {
+        return child;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 获取当前选中的节点 ID
+   */
+  getSelectedNodeId(): string | null {
+    if (!this.selector?.selected) return null;
+    return this.getNodeId(this.selector.selected);
+  }
+
+  /**
+   * 通过节点 ID 选中节点
+   */
+  selectNodeById(nodeId: string | null): void {
+    if (!nodeId) {
+      this.selector?.deselect();
+      this.transformer?.detach();
+      return;
+    }
+
+    const displayObject = this.findDisplayObjectByNodeId(nodeId);
+    if (displayObject) {
+      this.selector?.select(displayObject);
+      this.transformer?.attach(displayObject);
     }
   }
 
@@ -859,6 +1038,35 @@ export class Pixi2D {
     if (this.selector?.selected) {
       this.selector.refreshBoundingBox();
       this.transformer?.updateControls();
+    }
+  }
+
+  // ============ 视口状态保存/恢复 ============
+
+  /**
+   * 获取当前视口状态
+   * 用于在切换模式前保存状态
+   */
+  getViewportState(): ViewportState2D {
+    return {
+      pan: this.getPan(),
+      zoom: this.getZoom(),
+    };
+  }
+
+  /**
+   * 设置视口状态
+   * 用于在切换模式后恢复状态
+   */
+  async setViewportState(state: ViewportState2D): Promise<void> {
+    // 等待初始化完成
+    await this.ready();
+
+    if (state.pan) {
+      this.setPan(state.pan.x, state.pan.y);
+    }
+    if (state.zoom !== undefined) {
+      this.setZoom(state.zoom);
     }
   }
 

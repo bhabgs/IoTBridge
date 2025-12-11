@@ -1,7 +1,7 @@
 import { Scene, PerspectiveCamera, WebGLRenderer, Vector3, Object3D, Box3 } from "three";
 // @ts-ignore - Three.js examples don't have proper type declarations
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { SceneModel, SceneChangeEvent, SceneChangeCallback, SceneNodeChanges } from "../types";
+import { SceneModel, SceneChangeEvent, SceneChangeCallback, SceneNodeChanges, ViewportState3D } from "../types";
 import { Three3DOptions } from "./types";
 import { nodeFactory } from "./nodeFactory";
 import { setupScene } from "./sceneSetup";
@@ -585,5 +585,54 @@ export class Three3D {
     if (index !== -1) {
       this.sceneChangeCallbacks.splice(index, 1);
     }
+  }
+
+  // ============ 视口状态保存/恢复 ============
+
+  /**
+   * 获取当前视口状态
+   * 用于在切换模式前保存状态
+   */
+  getViewportState(): ViewportState3D {
+    return {
+      cameraPosition: {
+        x: this.camera.position.x,
+        y: this.camera.position.y,
+        z: this.camera.position.z,
+      },
+      controlsTarget: {
+        x: this.orbitControls.target.x,
+        y: this.orbitControls.target.y,
+        z: this.orbitControls.target.z,
+      },
+      cameraZoom: this.camera.zoom,
+    };
+  }
+
+  /**
+   * 设置视口状态
+   * 用于在切换模式后恢复状态
+   */
+  setViewportState(state: ViewportState3D): void {
+    if (state.cameraPosition) {
+      this.camera.position.set(
+        state.cameraPosition.x,
+        state.cameraPosition.y,
+        state.cameraPosition.z
+      );
+    }
+    if (state.controlsTarget) {
+      this.orbitControls.target.set(
+        state.controlsTarget.x,
+        state.controlsTarget.y,
+        state.controlsTarget.z
+      );
+    }
+    if (state.cameraZoom !== undefined) {
+      this.camera.zoom = state.cameraZoom;
+      this.camera.updateProjectionMatrix();
+    }
+    // 更新控制器
+    this.orbitControls.update();
   }
 }

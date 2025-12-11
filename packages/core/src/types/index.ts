@@ -789,3 +789,30 @@ export interface HistoryEntry<T = any> {
   description?: string;
   patch: T; // 可序列化的补丁/命令
 }
+
+/**--------- 视口状态（用于保存/恢复视图） ---------*/
+/** 2D 视口状态 */
+export interface ViewportState2D {
+  /** 平移位置 */
+  pan: { x: number; y: number };
+  /** 缩放级别 */
+  zoom: number;
+}
+
+/** 3D 视口状态 */
+export interface ViewportState3D {
+  /** 相机位置 */
+  cameraPosition: { x: number; y: number; z: number };
+  /** 轨道控制器目标点 */
+  controlsTarget: { x: number; y: number; z: number };
+  /** 相机缩放（用于正交相机） */
+  cameraZoom?: number;
+}
+
+/** 统一视口状态 */
+export interface ViewportState {
+  /** 2D 视口状态 */
+  viewport2D?: ViewportState2D;
+  /** 3D 视口状态 */
+  viewport3D?: ViewportState3D;
+}
