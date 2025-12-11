@@ -1,5 +1,5 @@
 import { Application, Container, FederatedPointerEvent } from "pixi.js";
-import { SceneModel } from "../types";
+import { SceneModel, SceneChangeEvent, SceneChangeCallback } from "../types";
 import {
   Pixi2DOptions,
   TransformMode2D,
@@ -28,6 +28,11 @@ export class Pixi2D {
   private pointerUpPosition = { x: 0, y: 0 };
   /** 是否正在拖拽元素 */
   private isDraggingElement = false;
+  /** 拖拽开始位置（用于检测是否发生移动） */
+  private dragStartObjectPosition: { x: number; y: number } | null = null;
+
+  /** 场景数据变化回调 */
+  private sceneChangeCallbacks: SceneChangeCallback[] = [];
 
   /** 初始化 Promise */
   private initPromise: Promise<void>;
@@ -83,8 +88,29 @@ export class Pixi2D {
       this.selector!.refreshBoundingBox();
     });
 
-    this.transformer.onTransformEnd(() => {
+    this.transformer.onTransformEnd((event) => {
       this.selector!.refreshBoundingBox();
+      // 触发数据变化事件
+      const nodeId = this.getNodeId(event.object);
+      if (nodeId) {
+        this.emitSceneChange({
+          type: "transform",
+          nodeId,
+          changes: {
+            transform: {
+              position: event.position
+                ? { x: event.position.x, y: event.position.y, z: 0 }
+                : undefined,
+              rotation: event.rotation !== undefined
+                ? { x: 0, y: 0, z: event.rotation }
+                : undefined,
+              scale: event.scale
+                ? { x: event.scale.x, y: event.scale.y, z: 1 }
+                : undefined,
+            },
+          },
+        });
+      }
     });
 
     // 加载节点
@@ -118,6 +144,44 @@ export class Pixi2D {
         this.enableDrag(displayObject);
       }
     }
+  }
+
+  /**
+   * 触发场景数据变化事件
+   */
+  private emitSceneChange(event: SceneChangeEvent): void {
+    // 同步更新 sceneModel
+    this.syncNodeToSceneModel(event);
+    // 触发回调
+    for (const callback of this.sceneChangeCallbacks) {
+      callback(event);
+    }
+  }
+
+  /**
+   * 将节点变化同步到 sceneModel
+   */
+  private syncNodeToSceneModel(event: SceneChangeEvent): void {
+    const nodeIndex = this.sceneModel.nodes.findIndex(
+      (n) => n.id === event.nodeId
+    );
+    if (nodeIndex === -1) return;
+
+    const node = this.sceneModel.nodes[nodeIndex];
+
+    if (event.type === "transform" && event.changes?.transform) {
+      node.transform = {
+        ...node.transform,
+        ...event.changes.transform,
+      };
+    }
+  }
+
+  /**
+   * 根据 DisplayObject 获取节点 ID
+   */
+  private getNodeId(object: Container): string | null {
+    return (object as any).nodeId ?? null;
   }
 
   /**
@@ -186,6 +250,26 @@ export class Pixi2D {
         if (!hasMoved) {
           // 选择对象
           this.selector?.select(object);
+        } else {
+          // 拖拽结束，触发数据变化事件
+          const nodeId = this.getNodeId(object);
+          if (nodeId && objectStartPosition) {
+            // 只有位置真正发生变化才触发
+            if (
+              object.x !== objectStartPosition.x ||
+              object.y !== objectStartPosition.y
+            ) {
+              this.emitSceneChange({
+                type: "transform",
+                nodeId,
+                changes: {
+                  transform: {
+                    position: { x: object.x, y: object.y, z: 0 },
+                  },
+                },
+              });
+            }
+          }
         }
 
         isDragging = false;
@@ -422,12 +506,33 @@ export class Pixi2D {
   }
 
   /**
+   * 添加场景数据变化监听
+   * 当画布中的节点发生变化时（位置、旋转、缩放等），会触发此回调
+   */
+  onSceneChange(callback: SceneChangeCallback): void {
+    this.sceneChangeCallbacks.push(callback);
+  }
+
+  /**
+   * 移除场景数据变化监听
+   */
+  offSceneChange(callback: SceneChangeCallback): void {
+    const index = this.sceneChangeCallbacks.indexOf(callback);
+    if (index !== -1) {
+      this.sceneChangeCallbacks.splice(index, 1);
+    }
+  }
+
+  /**
    * 销毁 Pixi2D 实例
    */
   dispose(): void {
     // 移除事件监听
     window.removeEventListener("resize", this.onResize);
     window.removeEventListener("keydown", this.onKeyDown);
+
+    // 清理回调
+    this.sceneChangeCallbacks = [];
 
     // 销毁选择器和变换器
     this.selector?.dispose();

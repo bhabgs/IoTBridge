@@ -753,6 +753,23 @@ export interface SelectionState {
   primaryId?: string | null;
 }
 
+/**--------- 场景数据变化事件 ---------*/
+export type SceneChangeType = "transform" | "geometry" | "material" | "style" | "add" | "remove" | "reorder";
+
+export interface SceneChangeEvent {
+  /** 变化类型 */
+  type: SceneChangeType;
+  /** 变化的节点 ID */
+  nodeId: string;
+  /** 变化的节点数据（更新后的完整节点或部分数据） */
+  node?: SceneNode;
+  /** 变化的具体字段（可选，用于细粒度更新） */
+  changes?: Partial<SceneNode>;
+}
+
+/** 场景数据变化回调 */
+export type SceneChangeCallback = (event: SceneChangeEvent) => void;
+
 export interface HistoryEntry<T = any> {
   id: string;
   timestamp: number;

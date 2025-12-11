@@ -1,4 +1,4 @@
-import { SceneMode, SceneModel } from "./types";
+import { SceneMode, SceneModel, SceneChangeEvent, SceneChangeCallback } from "./types";
 import { Pixi2D } from "./2d";
 import { Three3D } from "./3d";
 
@@ -34,12 +34,21 @@ export {
   TransformChangeEvent2D,
 } from "./2d";
 
+// 导出场景数据变化相关类型
+export type {
+  SceneChangeType,
+  SceneChangeEvent,
+  SceneChangeCallback,
+} from "./types";
+
 // SDK 只支持 "2d" 和 "3d" 模式
 
 export interface SDKOptions {
   container: HTMLElement;
   sceneModel?: SceneModel;
   onModeChange?: (mode: SceneMode) => void;
+  /** 场景数据变化回调 */
+  onSceneChange?: SceneChangeCallback;
 }
 
 class IndustrialConfigSDK {
@@ -87,12 +96,24 @@ class IndustrialConfigSDK {
   container: HTMLElement;
   target: Pixi2D | Three3D | null = null;
   private onModeChange?: (mode: SceneMode) => void;
+  private onSceneChangeCallback?: SceneChangeCallback;
+  /** 内部场景变化处理器 */
+  private sceneChangeHandler: SceneChangeCallback;
 
   constructor(options: SDKOptions) {
-    const { container, sceneModel, onModeChange } = options;
+    const { container, sceneModel, onModeChange, onSceneChange } = options;
     this.container = container;
     this.sceneModel = sceneModel || this.sceneModel;
     this.onModeChange = onModeChange;
+    this.onSceneChangeCallback = onSceneChange;
+
+    // 创建场景变化处理器
+    this.sceneChangeHandler = (event: SceneChangeEvent) => {
+      // 同步更新 SDK 的 sceneModel
+      this.syncSceneModel(event);
+      // 触发外部回调
+      this.onSceneChangeCallback?.(event);
+    };
 
     if (!this.container) {
       throw new Error("Container is required");
@@ -115,11 +136,15 @@ class IndustrialConfigSDK {
         container: this.container,
         sceneModel: this.sceneModel,
       });
+      // 绑定场景变化监听
+      this.target.onSceneChange(this.sceneChangeHandler);
     } else if (mode === "3d") {
       this.target = new Three3D({
         container: this.container,
         sceneModel: this.sceneModel,
       });
+      // 绑定场景变化监听
+      this.target.onSceneChange(this.sceneChangeHandler);
     } else {
       // 如果模式是 "auto" 或其他不支持的值，默认使用 "3d"
       const defaultMode: SceneMode = "3d";
@@ -131,6 +156,8 @@ class IndustrialConfigSDK {
         container: this.container,
         sceneModel: this.sceneModel,
       });
+      // 绑定场景变化监听
+      this.target.onSceneChange(this.sceneChangeHandler);
     }
   }
 
@@ -243,11 +270,39 @@ class IndustrialConfigSDK {
   }
 
   /**
+   * 同步场景模型数据
+   */
+  private syncSceneModel(event: SceneChangeEvent): void {
+    const nodeIndex = this.sceneModel.nodes.findIndex(
+      (n) => n.id === event.nodeId
+    );
+    if (nodeIndex === -1) return;
+
+    const node = this.sceneModel.nodes[nodeIndex];
+
+    if (event.type === "transform" && event.changes?.transform) {
+      node.transform = {
+        ...node.transform,
+        ...event.changes.transform,
+      };
+    }
+  }
+
+  /**
+   * 添加场景数据变化监听
+   * 当画布中的节点发生变化时（位置、旋转、缩放等），会触发此回调
+   */
+  onSceneChange(callback: SceneChangeCallback): void {
+    this.onSceneChangeCallback = callback;
+  }
+
+  /**
    * 销毁 SDK 实例
    */
   dispose() {
     this.disposeCurrent();
     this.onModeChange = undefined;
+    this.onSceneChangeCallback = undefined;
   }
 }
 

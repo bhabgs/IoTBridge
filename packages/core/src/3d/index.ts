@@ -1,7 +1,7 @@
 import { Scene, PerspectiveCamera, WebGLRenderer, Vector3, Object3D, Box3 } from "three";
 // @ts-ignore - Three.js examples don't have proper type declarations
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { SceneModel } from "../types";
+import { SceneModel, SceneChangeEvent, SceneChangeCallback } from "../types";
 import { Three3DOptions } from "./types";
 import { nodeFactory } from "./nodeFactory";
 import { setupScene } from "./sceneSetup";
@@ -32,6 +32,9 @@ export class Three3D {
   // 指针状态
   private pointerDownPosition = { x: 0, y: 0 };
   private pointerUpPosition = { x: 0, y: 0 };
+
+  /** 场景数据变化回调 */
+  private sceneChangeCallbacks: SceneChangeCallback[] = [];
 
   constructor(options: Three3DOptions) {
     const { container, sceneModel } = options;
@@ -87,9 +90,30 @@ export class Three3D {
       this.orbitControls.enabled = false;
     });
 
-    this.transformer.onTransformEnd(() => {
+    this.transformer.onTransformEnd((event) => {
       this.orbitControls.enabled = true;
       this.selector.refreshBoundingBox();
+      // 触发数据变化事件
+      const nodeId = this.getNodeId(event.object);
+      if (nodeId) {
+        this.emitSceneChange({
+          type: "transform",
+          nodeId,
+          changes: {
+            transform: {
+              position: event.position
+                ? { x: event.position.x, y: event.position.y, z: event.position.z }
+                : undefined,
+              rotation: event.rotation
+                ? { x: event.rotation.x, y: event.rotation.y, z: event.rotation.z }
+                : undefined,
+              scale: event.scale
+                ? { x: event.scale.x, y: event.scale.y, z: event.scale.z }
+                : undefined,
+            },
+          },
+        });
+      }
     });
 
     // 变换过程中更新边界框
@@ -126,6 +150,44 @@ export class Three3D {
         this.scene.add(object);
       }
     }
+  }
+
+  /**
+   * 触发场景数据变化事件
+   */
+  private emitSceneChange(event: SceneChangeEvent): void {
+    // 同步更新 sceneModel
+    this.syncNodeToSceneModel(event);
+    // 触发回调
+    for (const callback of this.sceneChangeCallbacks) {
+      callback(event);
+    }
+  }
+
+  /**
+   * 将节点变化同步到 sceneModel
+   */
+  private syncNodeToSceneModel(event: SceneChangeEvent): void {
+    const nodeIndex = this.sceneModel.nodes.findIndex(
+      (n) => n.id === event.nodeId
+    );
+    if (nodeIndex === -1) return;
+
+    const node = this.sceneModel.nodes[nodeIndex];
+
+    if (event.type === "transform" && event.changes?.transform) {
+      node.transform = {
+        ...node.transform,
+        ...event.changes.transform,
+      };
+    }
+  }
+
+  /**
+   * 根据 Object3D 获取节点 ID
+   */
+  private getNodeId(object: Object3D): string | null {
+    return (object as any).nodeId ?? null;
   }
 
   /**
@@ -317,6 +379,8 @@ export class Three3D {
     this.renderer.domElement.removeEventListener("pointerdown", this.onPointerDown);
     this.renderer.domElement.removeEventListener("pointerup", this.onPointerUp);
     this.renderer.domElement.removeEventListener("dblclick", this.onDoubleClick);
+    // 清理回调
+    this.sceneChangeCallbacks = [];
     this.selector.dispose();
     this.transformer.dispose();
     this.orbitControls.dispose();
@@ -479,5 +543,23 @@ export class Three3D {
    */
   onTransformEnd(callback: (event: TransformChangeEvent) => void): void {
     this.transformer.onTransformEnd(callback);
+  }
+
+  /**
+   * 添加场景数据变化监听
+   * 当画布中的节点发生变化时（位置、旋转、缩放等），会触发此回调
+   */
+  onSceneChange(callback: SceneChangeCallback): void {
+    this.sceneChangeCallbacks.push(callback);
+  }
+
+  /**
+   * 移除场景数据变化监听
+   */
+  offSceneChange(callback: SceneChangeCallback): void {
+    const index = this.sceneChangeCallbacks.indexOf(callback);
+    if (index !== -1) {
+      this.sceneChangeCallbacks.splice(index, 1);
+    }
   }
 }
