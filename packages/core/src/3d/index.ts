@@ -36,10 +36,16 @@ export class Three3D {
   // 键盘控制
   private keys = new Set<string>();
   private moveSpeed = 0.05; // 移动速度（世界单位）
+  private rotateSpeed = 0.003; // 鼠标旋转速度（弧度/像素）
+  private keyRotateSpeed = 0.02; // 键盘旋转速度（弧度/帧）
 
   // 指针状态
   private pointerDownPosition = { x: 0, y: 0 };
   private pointerUpPosition = { x: 0, y: 0 };
+
+  // 鼠标右键拖拽旋转相关
+  private isRightMouseDown = false;
+  private lastMousePosition = { x: 0, y: 0 };
 
   /** 场景数据变化回调 */
   private sceneChangeCallbacks: SceneChangeCallback[] = [];
@@ -237,7 +243,11 @@ export class Three3D {
     // 指针事件（用于选择）
     this.renderer.domElement.addEventListener("pointerdown", this.onPointerDown);
     this.renderer.domElement.addEventListener("pointerup", this.onPointerUp);
+    this.renderer.domElement.addEventListener("pointermove", this.onPointerMove);
     this.renderer.domElement.addEventListener("dblclick", this.onDoubleClick);
+
+    // 禁用右键菜单
+    this.renderer.domElement.addEventListener("contextmenu", this.onContextMenu);
   }
 
   /**
@@ -312,6 +322,12 @@ export class Three3D {
       this.keys.add(key);
       event.preventDefault(); // 防止页面滚动
     }
+
+    // 处理方向键（视角旋转）
+    if (["arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
+      this.keys.add(key);
+      event.preventDefault();
+    }
   };
 
   /**
@@ -337,6 +353,11 @@ export class Three3D {
     if (["w", "a", "s", "d", "q", "e"].includes(key)) {
       this.keys.delete(key);
     }
+
+    // 处理方向键
+    if (["arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
+      this.keys.delete(key);
+    }
   };
 
   /**
@@ -344,6 +365,9 @@ export class Three3D {
    */
   private handleKeyboardMovement() {
     if (this.keys.size === 0) return;
+
+    // 处理方向键视角旋转
+    this.handleArrowKeyRotation();
 
     // 获取相机的前方向（朝向目标的方向）
     const direction = new Vector3();
@@ -404,7 +428,9 @@ export class Three3D {
     window.removeEventListener("keyup", this.onKeyUp);
     this.renderer.domElement.removeEventListener("pointerdown", this.onPointerDown);
     this.renderer.domElement.removeEventListener("pointerup", this.onPointerUp);
+    this.renderer.domElement.removeEventListener("pointermove", this.onPointerMove);
     this.renderer.domElement.removeEventListener("dblclick", this.onDoubleClick);
+    this.renderer.domElement.removeEventListener("contextmenu", this.onContextMenu);
     // 清理回调
     this.sceneChangeCallbacks = [];
     this.selector.dispose();
@@ -431,7 +457,17 @@ export class Three3D {
    * 指针按下事件
    */
   private onPointerDown = (event: PointerEvent): void => {
-    // 只处理左键点击
+    // 右键按下 - 开始视角旋转
+    if (event.button === 2) {
+      this.isRightMouseDown = true;
+      this.lastMousePosition.x = event.clientX;
+      this.lastMousePosition.y = event.clientY;
+      // 禁用 OrbitControls 避免冲突
+      this.orbitControls.enabled = false;
+      return;
+    }
+
+    // 左键点击 - 用于选择
     if (event.button !== 0) return;
 
     const pos = this.getPointerPosition(event);
@@ -443,6 +479,14 @@ export class Three3D {
    * 指针释放事件
    */
   private onPointerUp = (event: PointerEvent): void => {
+    // 右键释放
+    if (event.button === 2) {
+      this.isRightMouseDown = false;
+      // 重新启用 OrbitControls
+      this.orbitControls.enabled = true;
+      return;
+    }
+
     // 只处理左键
     if (event.button !== 0) return;
 
@@ -463,6 +507,91 @@ export class Three3D {
       }
     }
   };
+
+  /**
+   * 指针移动事件 - 用于右键拖拽旋转视角
+   */
+  private onPointerMove = (event: PointerEvent): void => {
+    if (!this.isRightMouseDown) return;
+
+    const deltaX = event.clientX - this.lastMousePosition.x;
+    const deltaY = event.clientY - this.lastMousePosition.y;
+
+    this.lastMousePosition.x = event.clientX;
+    this.lastMousePosition.y = event.clientY;
+
+    // 围绕目标点旋转相机
+    this.rotateCamera(-deltaX * this.rotateSpeed, -deltaY * this.rotateSpeed);
+  };
+
+  /**
+   * 禁用右键菜单
+   */
+  private onContextMenu = (event: Event): void => {
+    event.preventDefault();
+  };
+
+  /**
+   * 旋转相机视角
+   * @param deltaYaw 水平旋转角度（弧度）
+   * @param deltaPitch 垂直旋转角度（弧度）
+   */
+  private rotateCamera(deltaYaw: number, deltaPitch: number): void {
+    // 获取相机到目标点的向量
+    const offset = new Vector3();
+    offset.copy(this.camera.position).sub(this.orbitControls.target);
+
+    // 转换为球坐标
+    const spherical = { radius: 0, theta: 0, phi: 0 };
+    spherical.radius = offset.length();
+    spherical.theta = Math.atan2(offset.x, offset.z); // 水平角度
+    spherical.phi = Math.acos(Math.min(1, Math.max(-1, offset.y / spherical.radius))); // 垂直角度
+
+    // 应用旋转
+    spherical.theta += deltaYaw;
+    spherical.phi += deltaPitch;
+
+    // 限制垂直角度，防止翻转
+    spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+
+    // 转换回笛卡尔坐标
+    offset.x = spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
+    offset.y = spherical.radius * Math.cos(spherical.phi);
+    offset.z = spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+
+    // 更新相机位置
+    this.camera.position.copy(this.orbitControls.target).add(offset);
+    this.camera.lookAt(this.orbitControls.target);
+  }
+
+  /**
+   * 处理方向键旋转视角
+   */
+  private handleArrowKeyRotation(): void {
+    let deltaYaw = 0;
+    let deltaPitch = 0;
+
+    // 左箭头 - 向左旋转
+    if (this.keys.has("arrowleft")) {
+      deltaYaw = this.keyRotateSpeed;
+    }
+    // 右箭头 - 向右旋转
+    if (this.keys.has("arrowright")) {
+      deltaYaw = -this.keyRotateSpeed;
+    }
+    // 上箭头 - 向上旋转
+    if (this.keys.has("arrowup")) {
+      deltaPitch = -this.keyRotateSpeed;
+    }
+    // 下箭头 - 向下旋转
+    if (this.keys.has("arrowdown")) {
+      deltaPitch = this.keyRotateSpeed;
+    }
+
+    if (deltaYaw !== 0 || deltaPitch !== 0) {
+      this.rotateCamera(deltaYaw, deltaPitch);
+    }
+  }
 
   /**
    * 双击事件 - 聚焦到对象

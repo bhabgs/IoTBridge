@@ -14,9 +14,9 @@ const data: SceneModel = {
         position: { x: 100, y: 0, z: 100 }
       },
       geometry: {
-        width: 100,
-        height: 100,
-        depth: 10
+        width: 100,  // X 轴尺寸
+        height: 100, // Y 轴尺寸（3D高度）
+        depth: 100   // Z 轴尺寸（2D高度）
       },
       material: {
         color: '#4A90D9'
@@ -32,7 +32,7 @@ const data: SceneModel = {
       geometry: {
         width: 80,
         height: 80,
-        depth: 10
+        depth: 80
       },
       material: {
         color: '#67C23A'

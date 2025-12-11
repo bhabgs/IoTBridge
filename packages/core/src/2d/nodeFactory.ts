@@ -134,12 +134,15 @@ export class NodeFactory2D {
 
   /**
    * 创建矩形
+   * 2D 模式是俯视图，所以：
+   * - width (X轴) 对应 2D 的宽度
+   * - depth (Z轴) 对应 2D 的高度
    */
   createRect(node: SceneNode): Graphics {
     const graphics = new Graphics();
     const geometry = node.geometry;
-    const width = geometry?.width ?? 100;
-    const height = geometry?.height ?? 100;
+    const width = geometry?.width ?? 100;    // X 轴尺寸
+    const depth = geometry?.depth ?? 100;    // Z 轴尺寸（2D 的高度）
     const cornerRadius = geometry?.cornerRadius;
 
     // 获取填充和描边颜色
@@ -147,11 +150,11 @@ export class NodeFactory2D {
     const strokeColor = parseColor(node.style?.stroke);
     const strokeWidth = node.style?.strokeWidth ?? 0;
 
-    // 绘制矩形
+    // 绘制矩形（width 是 X，depth 是 Z/2D高度）
     if (cornerRadius && typeof cornerRadius === "number" && cornerRadius > 0) {
-      graphics.roundRect(0, 0, width, height, cornerRadius);
+      graphics.roundRect(0, 0, width, depth, cornerRadius);
     } else {
-      graphics.rect(0, 0, width, height);
+      graphics.rect(0, 0, width, depth);
     }
 
     // 填充
