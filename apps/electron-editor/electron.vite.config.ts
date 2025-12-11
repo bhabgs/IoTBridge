@@ -29,7 +29,7 @@ export default defineConfig({
     },
     plugins: [react()],
     optimizeDeps: {
-      include: ['pixi.js', 'three', 'industrial-sdk-core']
+      include: ['pixi.js', 'three']
     }
   }
 })
