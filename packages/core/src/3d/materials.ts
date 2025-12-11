@@ -52,7 +52,7 @@ export function createMaterial(node: SceneNode): MaterialType {
   if (nodeMaterial?.side === "back") side = BackSide;
   if (nodeMaterial?.side === "double") side = DoubleSide;
 
-  const materialType = nodeMaterial?.type || "basic";
+  const materialType = nodeMaterial?.type || "standard"; // 默认使用 standard 材质以支持灯光和阴影
 
   const baseOptions = {
     color,
@@ -66,8 +66,8 @@ export function createMaterial(node: SceneNode): MaterialType {
     case "standard":
       return new MeshStandardMaterial({
         ...baseOptions,
-        metalness: nodeMaterial?.metalness ?? 0,
-        roughness: nodeMaterial?.roughness ?? 0.5,
+        metalness: nodeMaterial?.metalness ?? 0.1,
+        roughness: nodeMaterial?.roughness ?? 0.6,
         flatShading: nodeMaterial?.flatShading ?? false,
       });
     case "physical":
@@ -85,8 +85,13 @@ export function createMaterial(node: SceneNode): MaterialType {
     case "lambert":
       return new MeshLambertMaterial(baseOptions);
     case "basic":
-    default:
       return new MeshBasicMaterial(baseOptions);
+    default:
+      return new MeshStandardMaterial({
+        ...baseOptions,
+        metalness: 0.1,
+        roughness: 0.6,
+      });
   }
 }
 

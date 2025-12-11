@@ -81,12 +81,22 @@ export function setupScene(
   const ambientLight = new AmbientLight(0xffffff, opts.ambientLightIntensity);
   scene.add(ambientLight);
 
-  // 添加平行光
+  // 添加平行光（带阴影）
   const directionalLight = new DirectionalLight(
     0xffffff,
     opts.directionalLightIntensity
   );
-  directionalLight.position.set(5, 5, 5);
+  directionalLight.position.set(5, 10, 5);
+  directionalLight.castShadow = true;
+  // 配置阴影
+  directionalLight.shadow.mapSize.width = 2048;
+  directionalLight.shadow.mapSize.height = 2048;
+  directionalLight.shadow.camera.near = 0.1;
+  directionalLight.shadow.camera.far = 50;
+  directionalLight.shadow.camera.left = -10;
+  directionalLight.shadow.camera.right = 10;
+  directionalLight.shadow.camera.top = 10;
+  directionalLight.shadow.camera.bottom = -10;
   scene.add(directionalLight);
 }
 

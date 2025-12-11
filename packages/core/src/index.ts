@@ -417,8 +417,9 @@ class IndustrialConfigSDK {
     if (this.target instanceof Pixi2D) {
       return this.target.updateNode(nodeId, updates);
     }
-    // TODO: 支持 Three3D
-    console.warn("updateNode is only supported in 2D mode currently");
+    if (this.target instanceof Three3D) {
+      return this.target.updateNode(nodeId, updates);
+    }
     return false;
   }
 
@@ -430,7 +431,9 @@ class IndustrialConfigSDK {
     if (this.target instanceof Pixi2D) {
       return this.target.getNode(nodeId);
     }
-    // 直接从 sceneModel 获取
+    if (this.target instanceof Three3D) {
+      return this.target.getNode(nodeId);
+    }
     return this.sceneModel.nodes.find((n) => n.id === nodeId) || null;
   }
 
@@ -448,7 +451,9 @@ class IndustrialConfigSDK {
     if (this.target instanceof Pixi2D) {
       return this.target.getSelectedNodeId();
     }
-    // TODO: 支持 Three3D
+    if (this.target instanceof Three3D) {
+      return this.target.getSelectedNodeId();
+    }
     return null;
   }
 
@@ -459,7 +464,9 @@ class IndustrialConfigSDK {
     if (this.target instanceof Pixi2D) {
       this.target.selectNodeById(nodeId);
     }
-    // TODO: 支持 Three3D
+    if (this.target instanceof Three3D) {
+      this.target.selectNodeById(nodeId);
+    }
   }
 
   /**

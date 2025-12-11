@@ -115,6 +115,14 @@ const Canvas = ({ className, defaultRunMode = 'edit' }: CanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const { sdkRef, setSDK, selectNode, addNode, currentMode, setCurrentMode } = useEditor()
 
+  // 使用 ref 保存最新的回调函数引用
+  const selectNodeRef = useRef(selectNode)
+  const setSDKRef = useRef(setSDK)
+  const setCurrentModeRef = useRef(setCurrentMode)
+  selectNodeRef.current = selectNode
+  setSDKRef.current = setSDK
+  setCurrentModeRef.current = setCurrentMode
+
   // 初始化 SDK - 只在组件挂载时执行一次
   useEffect(() => {
     if (!containerRef.current) return
@@ -123,24 +131,28 @@ const Canvas = ({ className, defaultRunMode = 'edit' }: CanvasProps) => {
       container: containerRef.current,
       sceneModel: data,
       onModeChange: (mode) => {
-        setCurrentMode(mode === '2d' ? '2D' : '3D')
+        setCurrentModeRef.current(mode === '2d' ? '2D' : '3D')
       }
     })
 
     // 将 SDK 实例注册到 EditorContext
-    setSDK(sdk)
+    setSDKRef.current(sdk)
 
-    // 监听 SDK 的选择变化
+    // 等待 2D 渲染器初始化完成后再注册选择监听
     const renderer = sdk.get2DRenderer()
-    if (renderer?.selector) {
-      renderer.selector.onChange((object) => {
-        if (object) {
-          const nodeId = (object as any).nodeId
-          if (nodeId) {
-            selectNode(nodeId)
-          }
-        } else {
-          selectNode(null)
+    if (renderer) {
+      renderer.ready().then(() => {
+        if (renderer.selector) {
+          renderer.selector.onChange((object) => {
+            if (object) {
+              const nodeId = (object as any).nodeId
+              if (nodeId) {
+                selectNodeRef.current(nodeId)
+              }
+            } else {
+              selectNodeRef.current(null)
+            }
+          })
         }
       })
     }
@@ -149,10 +161,9 @@ const Canvas = ({ className, defaultRunMode = 'edit' }: CanvasProps) => {
 
     return () => {
       sdk.dispose()
-      setSDK(null)
+      setSDKRef.current(null)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // 只在组件挂载时执行一次，不依赖任何 callback
+  }, []) // 只在组件挂载时执行一次
 
   // 切换模式
   const handleModeSwitch = useCallback(

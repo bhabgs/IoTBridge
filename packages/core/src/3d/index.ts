@@ -1,7 +1,7 @@
 import { Scene, PerspectiveCamera, WebGLRenderer, Vector3, Object3D, Box3 } from "three";
 // @ts-ignore - Three.js examples don't have proper type declarations
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { SceneModel, SceneChangeEvent, SceneChangeCallback, SceneNodeChanges, ViewportState3D } from "../types";
+import { SceneModel, SceneNode, SceneChangeEvent, SceneChangeCallback, SceneNodeChanges, ViewportState3D } from "../types";
 import { Three3DOptions } from "./types";
 import { nodeFactory } from "./nodeFactory";
 import { setupScene } from "./sceneSetup";
@@ -64,6 +64,8 @@ export class Three3D {
     this.renderer = new WebGLRenderer({ antialias: true });
     this.renderer.setSize(clientWidth, clientHeight);
     this.renderer.setPixelRatio(window.devicePixelRatio);
+    // 启用阴影
+    this.renderer.shadowMap.enabled = true;
     container.appendChild(this.renderer.domElement);
 
     // 创建轨道控制器（支持缩放和旋转）
@@ -634,5 +636,163 @@ export class Three3D {
     }
     // 更新控制器
     this.orbitControls.update();
+  }
+
+  // ============ 节点管理方法 ============
+
+  /**
+   * 获取当前选中的节点 ID
+   */
+  getSelectedNodeId(): string | null {
+    const selected = this.selector.selected;
+    if (!selected) return null;
+    return selected.userData?.nodeId ?? null;
+  }
+
+  /**
+   * 通过节点 ID 选中节点
+   */
+  selectNodeById(nodeId: string | null): void {
+    if (!nodeId) {
+      this.selector.deselect();
+      return;
+    }
+    this.selector.selectByNodeId(nodeId);
+  }
+
+  /**
+   * 根据节点 ID 查找 Object3D
+   */
+  private findObjectByNodeId(nodeId: string): Object3D | null {
+    let found: Object3D | null = null;
+    this.scene.traverse((object) => {
+      if (object.userData?.nodeId === nodeId) {
+        found = object;
+      }
+    });
+    return found;
+  }
+
+  /**
+   * 获取节点数据
+   */
+  getNode(nodeId: string): SceneNode | null {
+    return this.sceneModel.nodes.find((n) => n.id === nodeId) || null;
+  }
+
+  /**
+   * 获取所有节点
+   */
+  getNodes(): SceneNode[] {
+    return [...this.sceneModel.nodes];
+  }
+
+  /**
+   * 更新节点属性
+   */
+  updateNode(nodeId: string, updates: Partial<SceneNode>): boolean {
+    const node = this.sceneModel.nodes.find((n) => n.id === nodeId);
+    if (!node) return false;
+
+    // 深度合并更新到 sceneModel 中的节点
+    if (updates.transform) {
+      node.transform = { ...node.transform, ...updates.transform };
+      if (updates.transform.position) {
+        node.transform.position = { ...node.transform.position, ...updates.transform.position };
+      }
+      if (updates.transform.rotation) {
+        node.transform.rotation = { ...node.transform.rotation, ...updates.transform.rotation };
+      }
+      if (updates.transform.scale) {
+        node.transform.scale = { ...node.transform.scale, ...updates.transform.scale };
+      }
+    }
+    if (updates.geometry) {
+      node.geometry = { ...node.geometry, ...updates.geometry };
+    }
+    if (updates.material) {
+      node.material = { ...node.material, ...updates.material };
+    }
+    if (updates.style) {
+      node.style = { ...node.style, ...updates.style };
+    }
+    if (updates.name !== undefined) {
+      node.name = updates.name;
+    }
+
+    // 更新 3D 对象
+    const object = this.findObjectByNodeId(nodeId);
+    if (object) {
+      // 检查是否需要重新创建对象（geometry、material、style 变化时需要重建）
+      const needsRebuild = updates.geometry || updates.material || updates.style;
+
+      if (needsRebuild) {
+        // 保存当前状态
+        const wasSelected = this.selector.selected === object;
+        const parent = object.parent;
+
+        // 移除旧对象
+        if (parent) {
+          parent.remove(object);
+        }
+
+        // 创建新对象
+        const newObject = nodeFactory.createObject3D(node);
+        if (newObject && parent) {
+          parent.add(newObject);
+
+          // 恢复选中状态
+          if (wasSelected) {
+            this.selector.select(newObject);
+            this.transformer.attach(newObject);
+          }
+        }
+      } else {
+        // 只更新 transform
+        if (updates.transform?.position) {
+          object.position.set(
+            updates.transform.position.x * SCALE,
+            updates.transform.position.y * SCALE,
+            updates.transform.position.z * SCALE
+          );
+        }
+        if (updates.transform?.rotation) {
+          object.rotation.set(
+            (updates.transform.rotation.x * Math.PI) / 180,
+            (updates.transform.rotation.y * Math.PI) / 180,
+            (updates.transform.rotation.z * Math.PI) / 180
+          );
+        }
+        if (updates.transform?.scale) {
+          object.scale.set(
+            updates.transform.scale.x,
+            updates.transform.scale.y,
+            updates.transform.scale.z
+          );
+        }
+
+        // 刷新选择框
+        if (this.selector.selected === object) {
+          this.selector.refreshBoundingBox();
+        }
+      }
+    }
+
+    // 构建变化事件
+    const changes: SceneNodeChanges = {};
+    if (updates.transform) changes.transform = updates.transform;
+    if (updates.geometry) changes.geometry = updates.geometry;
+    if (updates.material) changes.material = updates.material;
+    if (updates.style) changes.style = updates.style;
+    if (updates.name !== undefined) changes.name = updates.name;
+
+    this.emitSceneChange({
+      type: "transform",
+      nodeId: nodeId,
+      node: node,
+      changes: changes,
+    });
+
+    return true;
   }
 }

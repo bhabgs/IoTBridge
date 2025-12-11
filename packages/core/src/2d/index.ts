@@ -303,36 +303,84 @@ export class Pixi2D {
     const node = this.sceneModel.nodes.find((n) => n.id === nodeId);
     if (!node) return false;
 
-    // 更新 sceneModel 中的节点
-    Object.assign(node, updates);
+    // 深度合并更新到 sceneModel 中的节点
+    if (updates.transform) {
+      node.transform = { ...node.transform, ...updates.transform };
+      if (updates.transform.position) {
+        node.transform.position = { ...node.transform.position, ...updates.transform.position };
+      }
+      if (updates.transform.rotation) {
+        node.transform.rotation = { ...node.transform.rotation, ...updates.transform.rotation };
+      }
+      if (updates.transform.scale) {
+        node.transform.scale = { ...node.transform.scale, ...updates.transform.scale };
+      }
+    }
+    if (updates.geometry) {
+      node.geometry = { ...node.geometry, ...updates.geometry };
+    }
+    if (updates.material) {
+      node.material = { ...node.material, ...updates.material };
+    }
+    if (updates.style) {
+      node.style = { ...node.style, ...updates.style };
+    }
+    if (updates.name !== undefined) {
+      node.name = updates.name;
+    }
 
     // 更新 DisplayObject
     if (this.contentContainer) {
       const displayObject = this.findDisplayObjectByNodeId(nodeId);
       if (displayObject) {
-        // 更新位置
-        if (updates.transform?.position) {
-          displayObject.position.set(
-            updates.transform.position.x,
-            updates.transform.position.z
-          );
-        }
-        // 更新旋转
-        if (updates.transform?.rotation) {
-          displayObject.rotation = (updates.transform.rotation.y * Math.PI) / 180;
-        }
-        // 更新缩放
-        if (updates.transform?.scale) {
-          displayObject.scale.set(
-            updates.transform.scale.x,
-            updates.transform.scale.z
-          );
-        }
+        // 检查是否需要重新创建图形（geometry、material、style 变化时需要重绘）
+        const needsRedraw = updates.geometry || updates.material || updates.style;
 
-        // 刷新选择框和变换控制器
-        if (this.selector?.selected === displayObject) {
-          this.selector.refreshBoundingBox();
-          this.transformer?.updateControls();
+        if (needsRedraw) {
+          // 保存当前状态
+          const wasSelected = this.selector?.selected === displayObject;
+          const index = this.contentContainer.getChildIndex(displayObject);
+
+          // 移除旧的 DisplayObject
+          this.contentContainer.removeChild(displayObject);
+          displayObject.destroy();
+
+          // 创建新的 DisplayObject
+          const newDisplayObject = nodeFactory2D.createDisplayObject(node);
+          if (newDisplayObject) {
+            // 插入到原来的位置
+            this.contentContainer.addChildAt(newDisplayObject, index);
+            this.enableDrag(newDisplayObject);
+
+            // 恢复选中状态
+            if (wasSelected) {
+              this.selector?.select(newDisplayObject);
+              this.transformer?.attach(newDisplayObject);
+            }
+          }
+        } else {
+          // 只更新 transform
+          if (updates.transform?.position) {
+            displayObject.position.set(
+              updates.transform.position.x,
+              updates.transform.position.z
+            );
+          }
+          if (updates.transform?.rotation) {
+            displayObject.rotation = (updates.transform.rotation.y * Math.PI) / 180;
+          }
+          if (updates.transform?.scale) {
+            displayObject.scale.set(
+              updates.transform.scale.x,
+              updates.transform.scale.z
+            );
+          }
+
+          // 刷新选择框和变换控制器
+          if (this.selector?.selected === displayObject) {
+            this.selector.refreshBoundingBox();
+            this.transformer?.updateControls();
+          }
         }
       }
     }
@@ -343,6 +391,7 @@ export class Pixi2D {
     if (updates.geometry) changes.geometry = updates.geometry;
     if (updates.material) changes.material = updates.material;
     if (updates.style) changes.style = updates.style;
+    if (updates.name !== undefined) changes.name = updates.name;
 
     this.emitSceneChange({
       type: "transform",

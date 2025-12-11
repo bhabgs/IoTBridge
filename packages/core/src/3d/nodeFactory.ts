@@ -7,7 +7,7 @@ import {
   Object3D,
   Line,
   LineBasicMaterial,
-  MeshBasicMaterial,
+  MeshStandardMaterial,
   Vector3,
 } from "three";
 import { SceneNode } from "../types";
@@ -96,6 +96,7 @@ export class NodeFactory {
 
   /**
    * 创建矩形/立方体
+   * 注意：BoxGeometry 的中心点在几何体中心，我们需要将物体放置在地面上
    */
   createRect(node: SceneNode): Mesh {
     const geometry = node.geometry;
@@ -105,26 +106,42 @@ export class NodeFactory {
 
     const color = parseColor(node.style?.fill || node.material?.color);
     const boxGeometry = new BoxGeometry(width, height, depth);
-    const material = new MeshBasicMaterial({ color });
 
-    return new Mesh(boxGeometry, material);
+    // 将几何体的中心点移动到底部，这样设置 position.y 时物体底部对齐到该位置
+    boxGeometry.translate(0, height / 2, 0);
+
+    const material = new MeshStandardMaterial({ color });
+    const mesh = new Mesh(boxGeometry, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    return mesh;
   }
 
   /**
    * 创建圆形/球体
+   * 注意：SphereGeometry 的中心点在几何体中心，我们需要将物体放置在地面上
    */
   createCircle(node: SceneNode): Mesh {
     const geometry = node.geometry;
     const radius = toWorldUnit(geometry?.radius ?? 50);
 
     const sphereGeometry = new SphereGeometry(radius, 32, 32);
-    const material = createMaterial(node);
 
-    return new Mesh(sphereGeometry, material);
+    // 将几何体的中心点移动到底部
+    sphereGeometry.translate(0, radius, 0);
+
+    const material = createMaterial(node);
+    const mesh = new Mesh(sphereGeometry, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    return mesh;
   }
 
   /**
    * 创建椭圆/椭球体
+   * 注意：需要将物体放置在地面上
    */
   createEllipse(node: SceneNode): Mesh {
     const geometry = node.geometry;
@@ -132,9 +149,15 @@ export class NodeFactory {
     const radiusY = toWorldUnit(geometry?.radiusY ?? geometry?.radius ?? 50);
 
     const sphereGeometry = new SphereGeometry(1, 32, 32);
+
+    // 将几何体的中心点移动到底部（考虑 Y 轴缩放后的实际半径）
+    sphereGeometry.translate(0, 1, 0);
+
     const material = createMaterial(node);
     const mesh = new Mesh(sphereGeometry, material);
     mesh.scale.set(radiusX, radiusY, Math.min(radiusX, radiusY));
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
 
     return mesh;
   }
