@@ -27,6 +27,16 @@ IoTBridge 是一个工业组态工具 SDK，提供 2D/3D 双模式的场景编�
 - **`packages/core`**：核心渲染 SDK，支持 PixiJS (2D) 和 Three.js (3D) 双引擎
 - **`apps/electron-editor`**：基于 Electron + React + Vite 的桌面编辑器应用
 
+### 效果预览
+
+#### 2D 编辑模式
+
+![2D 编辑器](./docs/2d.png)
+
+#### 3D 编辑模式
+
+![3D 编辑器](./docs/3d.png)
+
 ---
 
 ## Core 核心包

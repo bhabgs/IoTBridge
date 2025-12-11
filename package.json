@@ -4,8 +4,6 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build:editor-core": "pnpm --filter editor-core build",
-    "dev:editor-core": "pnpm --filter editor-core dev",
     "build:electron-editor": "pnpm --filter electron-editor build",
     "dev:electron-editor": "pnpm --filter electron-editor dev",
     "dev:core": "pnpm --filter core dev"
