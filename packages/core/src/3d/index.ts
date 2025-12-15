@@ -47,6 +47,9 @@ export class Three3D {
   private isRightMouseDown = false;
   private lastMousePosition = { x: 0, y: 0 };
 
+  /** 鼠标是否在画布上 */
+  private isCanvasHovered = false;
+
   /** 场景数据变化回调 */
   private sceneChangeCallbacks: SceneChangeCallback[] = [];
 
@@ -246,6 +249,10 @@ export class Three3D {
     this.renderer.domElement.addEventListener("pointermove", this.onPointerMove);
     this.renderer.domElement.addEventListener("dblclick", this.onDoubleClick);
 
+    // 跟踪鼠标进入/离开画布
+    this.renderer.domElement.addEventListener("pointerenter", this.onCanvasPointerEnter);
+    this.renderer.domElement.addEventListener("pointerleave", this.onCanvasPointerLeave);
+
     // 禁用右键菜单
     this.renderer.domElement.addEventListener("contextmenu", this.onContextMenu);
   }
@@ -261,9 +268,33 @@ export class Three3D {
   };
 
   /**
+   * 检查是否应该处理键盘事件
+   * 只有当鼠标在画布上且焦点不在输入框时才处理
+   */
+  private shouldHandleKeyboardEvent(): boolean {
+    // 如果鼠标不在画布上，不处理
+    if (!this.isCanvasHovered) return false;
+
+    // 如果焦点在输入框、文本框或可编辑元素上，不处理
+    const activeElement = document.activeElement;
+    if (
+      activeElement &&
+      (activeElement.tagName === "INPUT" ||
+        activeElement.tagName === "TEXTAREA" ||
+        activeElement.hasAttribute("contenteditable"))
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
    * 键盘按下事件
    */
   onKeyDown = (event: KeyboardEvent) => {
+    if (!this.shouldHandleKeyboardEvent()) return;
+
     const key = event.key.toLowerCase();
     const code = event.code.toLowerCase();
 
@@ -334,6 +365,8 @@ export class Three3D {
    * 键盘释放事件
    */
   onKeyUp = (event: KeyboardEvent) => {
+    if (!this.shouldHandleKeyboardEvent()) return;
+
     const key = event.key.toLowerCase();
     const code = event.code.toLowerCase();
 
@@ -358,6 +391,20 @@ export class Three3D {
     if (["arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
       this.keys.delete(key);
     }
+  };
+
+  /**
+   * 鼠标进入画布
+   */
+  onCanvasPointerEnter = (): void => {
+    this.isCanvasHovered = true;
+  };
+
+  /**
+   * 鼠标离开画布
+   */
+  onCanvasPointerLeave = (): void => {
+    this.isCanvasHovered = false;
   };
 
   /**
@@ -430,6 +477,8 @@ export class Three3D {
     this.renderer.domElement.removeEventListener("pointerup", this.onPointerUp);
     this.renderer.domElement.removeEventListener("pointermove", this.onPointerMove);
     this.renderer.domElement.removeEventListener("dblclick", this.onDoubleClick);
+    this.renderer.domElement.removeEventListener("pointerenter", this.onCanvasPointerEnter);
+    this.renderer.domElement.removeEventListener("pointerleave", this.onCanvasPointerLeave);
     this.renderer.domElement.removeEventListener("contextmenu", this.onContextMenu);
     // 清理回调
     this.sceneChangeCallbacks = [];
@@ -631,9 +680,13 @@ export class Three3D {
    */
   deleteSelected(): void {
     const selected = this.selector.selected;
-    if (selected && selected.parent) {
-      this.selector.deselect();
-      selected.parent.remove(selected);
+    if (!selected) return;
+
+    // 获取节点 ID
+    const nodeId = selected.userData?.nodeId;
+    if (nodeId) {
+      // 使用 removeNode 方法删除，这会同时更新数据模型和触发事件
+      this.removeNode(nodeId);
     }
   }
 

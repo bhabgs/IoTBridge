@@ -41,6 +41,8 @@ export class Pixi2D {
   private panStartCanvasPosition = { x: 0, y: 0 };
   /** 是否按住空格键 */
   private isSpacePressed = false;
+  /** 鼠标是否在画布上 */
+  private isCanvasHovered = false;
 
   /** 缩放限制 */
   private minZoom = 0.1;
@@ -628,6 +630,10 @@ export class Pixi2D {
     this.app.canvas.addEventListener("pointermove", this.onCanvasPointerMove);
     this.app.canvas.addEventListener("pointerup", this.onCanvasPointerUp);
     this.app.canvas.addEventListener("pointerleave", this.onCanvasPointerUp);
+
+    // 跟踪鼠标进入/离开画布
+    this.app.canvas.addEventListener("pointerenter", this.onCanvasPointerEnter);
+    this.app.canvas.addEventListener("pointerleave", this.onCanvasPointerLeave);
   }
 
   /**
@@ -644,9 +650,33 @@ export class Pixi2D {
   };
 
   /**
+   * 检查是否应该处理键盘事件
+   * 只有当鼠标在画布上且焦点不在输入框时才处理
+   */
+  private shouldHandleKeyboardEvent(): boolean {
+    // 如果鼠标不在画布上，不处理
+    if (!this.isCanvasHovered) return false;
+
+    // 如果焦点在输入框、文本框或可编辑元素上，不处理
+    const activeElement = document.activeElement;
+    if (
+      activeElement &&
+      (activeElement.tagName === "INPUT" ||
+        activeElement.tagName === "TEXTAREA" ||
+        activeElement.hasAttribute("contenteditable"))
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
    * 键盘按下事件
    */
   private onKeyDown = (event: KeyboardEvent): void => {
+    if (!this.shouldHandleKeyboardEvent()) return;
+
     const key = event.key.toLowerCase();
     const code = event.code.toLowerCase();
 
@@ -687,6 +717,8 @@ export class Pixi2D {
    * 键盘释放事件
    */
   private onKeyUp = (event: KeyboardEvent): void => {
+    if (!this.shouldHandleKeyboardEvent()) return;
+
     const code = event.code.toLowerCase();
 
     // 空格键释放 - 禁用画布拖拽模式
@@ -697,6 +729,20 @@ export class Pixi2D {
         this.app.canvas.style.cursor = "default";
       }
     }
+  };
+
+  /**
+   * 鼠标进入画布
+   */
+  private onCanvasPointerEnter = (): void => {
+    this.isCanvasHovered = true;
+  };
+
+  /**
+   * 鼠标离开画布
+   */
+  private onCanvasPointerLeave = (): void => {
+    this.isCanvasHovered = false;
   };
 
   /**
@@ -884,10 +930,13 @@ export class Pixi2D {
    */
   deleteSelected(): void {
     const selected = this.selector?.selected;
-    if (selected && selected.parent) {
-      this.selector?.deselect();
-      selected.parent.removeChild(selected);
-      selected.destroy();
+    if (!selected) return;
+
+    // 获取节点 ID
+    const nodeId = this.getNodeId(selected);
+    if (nodeId) {
+      // 使用 removeNode 方法删除，这会同时更新数据模型和触发事件
+      this.removeNode(nodeId);
     }
   }
 
@@ -1191,6 +1240,8 @@ export class Pixi2D {
       this.app.canvas.removeEventListener("pointermove", this.onCanvasPointerMove);
       this.app.canvas.removeEventListener("pointerup", this.onCanvasPointerUp);
       this.app.canvas.removeEventListener("pointerleave", this.onCanvasPointerUp);
+      this.app.canvas.removeEventListener("pointerenter", this.onCanvasPointerEnter);
+      this.app.canvas.removeEventListener("pointerleave", this.onCanvasPointerLeave);
 
       // 移除 canvas
       if (this.app.canvas && this.app.canvas.parentNode) {
