@@ -6,3 +6,6 @@ export * from './interfaces';
 export * from './EventEmitter';
 export * from './CoordinateSystem';
 export * from './constants';
+export { BaseRenderer, RendererEvents } from './BaseRenderer';
+export type { BaseRendererOptions } from './BaseRenderer';
+export * from './KeyBindings';

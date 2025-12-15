@@ -73,8 +73,8 @@ export interface ITransformer<T> {
   /** 是否正在拖拽 */
   isDraggingObject(): boolean;
 
-  /** 更新控制器 */
-  updateControls(): void;
+  /** 更新控制器（可选，2D 专用） */
+  updateControls?(): void;
 
   /** 添加变换开始监听 */
   onTransformStart(callback: () => void): void;

@@ -20,6 +20,13 @@ import { useTranslation } from 'react-i18next'
 import { useState, useMemo } from 'react'
 import { useEditor } from '../../context/EditorContext'
 import type { SceneNode } from 'core'
+import {
+  duplicateNode,
+  createComponentDragData,
+  setDragData,
+  handleDragStartVisual,
+  handleDragEndVisual
+} from '@renderer/utils'
 import styles from './index.module.less'
 
 interface ComponentItem {
@@ -142,21 +149,7 @@ const Toolbox = ({ className }: { className?: string }) => {
         if (key === 'delete') {
           deleteNode(node.id)
         } else if (key === 'copy') {
-          // 复制节点
-          const newNode: SceneNode = {
-            ...node,
-            id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            name: `${node.name || node.type} (副本)`,
-            transform: {
-              ...node.transform,
-              position: {
-                x: (node.transform?.position?.x ?? 0) + 20,
-                y: node.transform?.position?.y ?? 0,
-                z: (node.transform?.position?.z ?? 0) + 20
-              }
-            }
-          }
-          addNode(newNode)
+          addNode(duplicateNode(node))
         }
       }
 
@@ -199,27 +192,12 @@ const Toolbox = ({ className }: { className?: string }) => {
     itemKey: string,
     label: string
   ) => {
-    const dragData = {
-      type: 'component',
-      groupKey,
-      itemKey,
-      label,
-      componentType: `${groupKey}-${itemKey}`
-    }
-    e.dataTransfer.setData('application/json', JSON.stringify(dragData))
-    e.dataTransfer.effectAllowed = 'copy'
-    // 设置拖拽时的视觉效果
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.opacity = '0.5'
-    }
+    setDragData(e, createComponentDragData(groupKey, itemKey, label))
+    handleDragStartVisual(e)
   }
 
   // 处理拖拽结束
-  const handleDragEnd = (e: React.DragEvent) => {
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.opacity = '1'
-    }
-  }
+  const handleDragEnd = handleDragEndVisual
 
   // 组件列表渲染
   const renderComponents = () => {

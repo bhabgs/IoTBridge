@@ -13,6 +13,12 @@ import {
 } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { useEditor } from '../../context/EditorContext'
+import {
+  createShapeDragData,
+  setDragData,
+  handleDragStartVisual,
+  handleDragEndVisual
+} from '@renderer/utils'
 import styles from './index.module.less'
 
 const { Title } = Typography
@@ -61,24 +67,12 @@ const Header = ({ className }: { className?: string }) => {
 
   // 处理基础图形拖拽开始
   const handleShapeDragStart = (e: React.DragEvent, key: string, title: string) => {
-    const dragData = {
-      type: 'shape',
-      shapeType: key,
-      label: title
-    }
-    e.dataTransfer.setData('application/json', JSON.stringify(dragData))
-    e.dataTransfer.effectAllowed = 'copy'
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.opacity = '0.5'
-    }
+    setDragData(e, createShapeDragData(key, title))
+    handleDragStartVisual(e)
   }
 
   // 处理基础图形拖拽结束
-  const handleShapeDragEnd = (e: React.DragEvent) => {
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.opacity = '1'
-    }
-  }
+  const handleShapeDragEnd = handleDragEndVisual
 
   // 处理导出
   const handleExport = () => {

@@ -234,7 +234,7 @@ class IndustrialConfigSDK {
         }
       });
     } else if (this.target instanceof Three3D) {
-      this.target.selector.onChange(handleSelectionChange);
+      this.target.selector?.onChange(handleSelectionChange);
     }
   }
 

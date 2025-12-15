@@ -1,31 +1,26 @@
 import { Application, Container, FederatedPointerEvent } from "pixi.js";
-import { SceneModel, SceneChangeEvent, SceneChangeCallback, SceneNodeChanges, ViewportState2D, SceneNode } from "../types";
-import {
-  Pixi2DOptions,
-  TransformMode2D,
-  TransformChangeEvent2D,
-} from "./types";
+import { SceneNode, ViewportState2D } from "../types";
+import { Pixi2DOptions, TransformMode2D, TransformChangeEvent2D } from "./types";
 import { nodeFactory2D } from "./nodeFactory";
 import { Selector2D, SelectionChangeCallback2D } from "./selector";
 import { Transformer2D } from "./transformer";
 import { DEFAULT_COLORS } from "../shared/constants";
+import { BaseRenderer, BaseRendererOptions } from "../shared/BaseRenderer";
+import { KeyBindingManager, createKeyBindingManager } from "../shared/KeyBindings";
 
 /**
  * Pixi2D - 2D 编辑器核心类
+ * 继承 BaseRenderer 以复用通用逻辑
  */
-export class Pixi2D {
+export class Pixi2D extends BaseRenderer<Container, ViewportState2D, Selector2D, Transformer2D> {
   app: Application | null = null;
-  container: HTMLElement;
-  sceneModel: SceneModel;
   options: Pixi2DOptions;
 
   /** 内容容器（用于缩放和平移） */
   contentContainer: Container | null = null;
 
-  /** 选择器 */
-  selector: Selector2D | null = null;
-  /** 变换器 */
-  transformer: Transformer2D | null = null;
+  /** 键盘绑定管理器 */
+  private keyBindings: KeyBindingManager;
 
   /** 指针状态 */
   private pointerDownPosition = { x: 0, y: 0 };
@@ -33,7 +28,7 @@ export class Pixi2D {
   /** 是否正在拖拽元素 */
   private isDraggingElement = false;
   /** 拖拽开始位置（用于检测是否发生移动） */
-  private dragStartObjectPosition: { x: number; y: number } | null = null;
+  private dragStartObjectPosition: { x: number; z: number } | null = null;
 
   /** 画布拖拽状态 */
   private isPanningCanvas = false;
@@ -41,26 +36,91 @@ export class Pixi2D {
   private panStartCanvasPosition = { x: 0, y: 0 };
   /** 是否按住空格键 */
   private isSpacePressed = false;
-  /** 鼠标是否在画布上 */
-  private isCanvasHovered = false;
 
   /** 缩放限制 */
   private minZoom = 0.1;
   private maxZoom = 10;
 
-  /** 场景数据变化回调 */
-  private sceneChangeCallbacks: SceneChangeCallback[] = [];
-
   /** 初始化 Promise */
   private initPromise: Promise<void>;
 
   constructor(options: Pixi2DOptions) {
-    const { container, sceneModel } = options;
-    this.container = container;
-    this.sceneModel = sceneModel;
+    super(options as BaseRendererOptions);
     this.options = options;
-
+    this.keyBindings = createKeyBindingManager();
     this.initPromise = this.init();
+  }
+
+  // ============ 实现抽象方法 ============
+
+  /**
+   * 创建显示对象
+   */
+  protected createDisplayObject(node: SceneNode): Container | null {
+    const displayObject = nodeFactory2D.createDisplayObject(node);
+    if (displayObject) {
+      this.enableDrag(displayObject);
+    }
+    return displayObject;
+  }
+
+  /**
+   * 添加显示对象到场景
+   */
+  protected addDisplayObjectToScene(object: Container): void {
+    if (this.contentContainer) {
+      this.contentContainer.addChild(object);
+    }
+  }
+
+  /**
+   * 从场景移除显示对象
+   */
+  protected removeDisplayObjectFromScene(object: Container): void {
+    if (this.contentContainer) {
+      this.contentContainer.removeChild(object);
+    }
+  }
+
+  /**
+   * 更新显示对象的变换
+   */
+  protected updateDisplayObjectTransform(object: Container, updates: Partial<SceneNode>): void {
+    if (updates.transform?.position) {
+      object.position.set(
+        updates.transform.position.x,
+        updates.transform.position.z
+      );
+    }
+    if (updates.transform?.rotation) {
+      object.rotation = (updates.transform.rotation.y * Math.PI) / 180;
+    }
+    if (updates.transform?.scale) {
+      object.scale.set(
+        updates.transform.scale.x,
+        updates.transform.scale.z
+      );
+    }
+
+    // 刷新选择框和变换控制器
+    if (this.selector?.selected === object) {
+      this.selector.refreshBoundingBox();
+      this.transformer?.updateControls();
+    }
+  }
+
+  /**
+   * 销毁显示对象
+   */
+  protected destroyDisplayObject(object: Container): void {
+    object.destroy();
+  }
+
+  /**
+   * 从显示对象获取节点 ID
+   */
+  protected getNodeIdFromDisplayObject(object: Container): string | null {
+    return (object as any).nodeId ?? null;
   }
 
   /**
@@ -88,21 +148,23 @@ export class Pixi2D {
     this.app.stage.addChild(this.contentContainer);
 
     // 将世界原点 (0, 0) 定位到屏幕中心
-    // 这样 SceneNode position (0, 0, 0) 会显示在屏幕中心
     this.contentContainer.position.set(
       this.container.clientWidth / 2,
       this.container.clientHeight / 2
     );
 
-    // 创建选择器（禁用边界框，由变换器显示）
-    // 选择器需要知道 contentContainer 来查找可选对象
+    // 创建选择器
     this.selector = new Selector2D(this.contentContainer, {
       showBoundingBox: false,
     });
 
-    // 创建变换器（添加到 stage 而不是 contentContainer，以避免缩放影响）
-    // 传入 contentContainer 用于坐标转换
-    this.transformer = new Transformer2D(this.app.stage, this.app.canvas, {}, this.contentContainer);
+    // 创建变换器
+    this.transformer = new Transformer2D(
+      this.app.stage,
+      this.app.canvas,
+      {},
+      this.contentContainer
+    );
 
     // 设置选择变化时的处理
     this.selector.onChange((object) => {
@@ -120,34 +182,7 @@ export class Pixi2D {
 
     this.transformer.onTransformEnd((event) => {
       this.selector!.refreshBoundingBox();
-      // 触发数据变化事件
-      const nodeId = this.getNodeId(event.object);
-      if (nodeId) {
-        // 获取原始节点数据中的 y 值（高度）
-        const originalY = this.getNodeOriginalY(nodeId);
-        // 2D 坐标映射回 3D：
-        // - position: 2D的x -> 3D的x，2D的y -> 3D的z，保持3D的y不变
-        // - rotation: 2D的旋转 -> 3D的y轴旋转
-        // - scale: 2D的scaleX -> 3D的scaleX，2D的scaleY -> 3D的scaleZ，保持3D的scaleY不变
-        const originalScale = this.getNodeOriginalScale(nodeId);
-        this.emitSceneChange({
-          type: "transform",
-          nodeId,
-          changes: {
-            transform: {
-              position: event.position
-                ? { x: event.position.x, y: originalY, z: event.position.y }
-                : undefined,
-              rotation: event.rotation !== undefined
-                ? { x: 0, y: event.rotation, z: 0 }
-                : undefined,
-              scale: event.scale
-                ? { x: event.scale.x, y: originalScale.y, z: event.scale.y }
-                : undefined,
-            },
-          },
-        });
-      }
+      this.handleTransformEnd(event);
     });
 
     // 加载节点
@@ -177,301 +212,40 @@ export class Pixi2D {
       const displayObject = nodeFactory2D.createDisplayObject(node);
       if (displayObject) {
         this.contentContainer.addChild(displayObject);
-        // 为元素启用拖拽功能
         this.enableDrag(displayObject);
+        // 添加到缓存
+        this.cacheDisplayObject(node.id, displayObject);
       }
     }
   }
 
   /**
-   * 触发场景数据变化事件
+   * 处理变换结束
    */
-  private emitSceneChange(event: SceneChangeEvent): void {
-    // 同步更新 sceneModel
-    this.syncNodeToSceneModel(event);
-    // 触发回调
-    for (const callback of this.sceneChangeCallbacks) {
-      callback(event);
-    }
-  }
+  private handleTransformEnd(event: TransformChangeEvent2D): void {
+    const nodeId = this.getNodeIdFromDisplayObject(event.object);
+    if (nodeId) {
+      const originalY = this.getNodeOriginalY(nodeId);
+      const originalScale = this.getNodeOriginalScale(nodeId);
 
-  /**
-   * 将节点变化同步到 sceneModel
-   */
-  private syncNodeToSceneModel(event: SceneChangeEvent): void {
-    const nodeIndex = this.sceneModel.nodes.findIndex(
-      (n) => n.id === event.nodeId
-    );
-    if (nodeIndex === -1) return;
-
-    const node = this.sceneModel.nodes[nodeIndex];
-
-    if (event.type === "transform" && event.changes?.transform) {
-      const transformChanges = event.changes.transform;
-      // 只更新有值的字段
-      if (transformChanges.position) {
-        node.transform.position = transformChanges.position;
-      }
-      if (transformChanges.rotation) {
-        node.transform.rotation = transformChanges.rotation;
-      }
-      if (transformChanges.scale) {
-        node.transform.scale = transformChanges.scale;
-      }
-    }
-  }
-
-  // ============ 节点管理方法 ============
-
-  /**
-   * 添加节点到场景
-   * @param node 节点数据
-   * @returns 添加的节点 ID
-   */
-  addNode(node: SceneNode): string {
-    // 添加到 sceneModel
-    this.sceneModel.nodes.push(node);
-
-    // 如果 Pixi 已初始化，直接创建 DisplayObject
-    if (this.app && this.contentContainer) {
-      const displayObject = nodeFactory2D.createDisplayObject(node);
-      if (displayObject) {
-        this.contentContainer.addChild(displayObject);
-        this.enableDrag(displayObject);
-      }
-      // 触发变化事件
       this.emitSceneChange({
-        type: "add",
-        nodeId: node.id,
-        node: node,
-      });
-    } else {
-      // 如果还没初始化完成，等待初始化后再创建 DisplayObject
-      this.initPromise.then(() => {
-        // 检查节点是否已经被渲染（loadNodes 可能已经处理了）
-        const existing = this.findDisplayObjectByNodeId(node.id);
-        if (!existing && this.contentContainer) {
-          const displayObject = nodeFactory2D.createDisplayObject(node);
-          if (displayObject) {
-            this.contentContainer.addChild(displayObject);
-            this.enableDrag(displayObject);
-          }
-        }
-        // 触发变化事件
-        this.emitSceneChange({
-          type: "add",
-          nodeId: node.id,
-          node: node,
-        });
+        type: "transform",
+        nodeId,
+        changes: {
+          transform: {
+            position: event.position
+              ? { x: event.position.x, y: originalY, z: event.position.y }
+              : undefined,
+            rotation: event.rotation !== undefined
+              ? { x: 0, y: event.rotation, z: 0 }
+              : undefined,
+            scale: event.scale
+              ? { x: event.scale.x, y: originalScale.y, z: event.scale.y }
+              : undefined,
+          },
+        },
       });
     }
-
-    return node.id;
-  }
-
-  /**
-   * 移除节点
-   * @param nodeId 节点 ID
-   */
-  removeNode(nodeId: string): boolean {
-    // 从 sceneModel 中移除
-    const nodeIndex = this.sceneModel.nodes.findIndex((n) => n.id === nodeId);
-    if (nodeIndex === -1) return false;
-
-    const removedNode = this.sceneModel.nodes.splice(nodeIndex, 1)[0];
-
-    // 从场景中移除 DisplayObject
-    if (this.contentContainer) {
-      const displayObject = this.findDisplayObjectByNodeId(nodeId);
-      if (displayObject) {
-        // 如果是当前选中的，先取消选择
-        if (this.selector?.selected === displayObject) {
-          this.selector.deselect();
-          this.transformer?.detach();
-        }
-        this.contentContainer.removeChild(displayObject);
-        displayObject.destroy();
-      }
-    }
-
-    // 触发变化事件
-    this.emitSceneChange({
-      type: "remove",
-      nodeId: nodeId,
-      node: removedNode,
-    });
-
-    return true;
-  }
-
-  /**
-   * 更新节点属性
-   * @param nodeId 节点 ID
-   * @param updates 更新的属性
-   */
-  updateNode(nodeId: string, updates: Partial<SceneNode>): boolean {
-    const node = this.sceneModel.nodes.find((n) => n.id === nodeId);
-    if (!node) return false;
-
-    // 深度合并更新到 sceneModel 中的节点
-    if (updates.transform) {
-      node.transform = { ...node.transform, ...updates.transform };
-      if (updates.transform.position) {
-        node.transform.position = { ...node.transform.position, ...updates.transform.position };
-      }
-      if (updates.transform.rotation) {
-        node.transform.rotation = { ...node.transform.rotation, ...updates.transform.rotation };
-      }
-      if (updates.transform.scale) {
-        node.transform.scale = { ...node.transform.scale, ...updates.transform.scale };
-      }
-    }
-    if (updates.geometry) {
-      node.geometry = { ...node.geometry, ...updates.geometry };
-    }
-    if (updates.material) {
-      node.material = { ...node.material, ...updates.material };
-    }
-    if (updates.style) {
-      node.style = { ...node.style, ...updates.style };
-    }
-    if (updates.name !== undefined) {
-      node.name = updates.name;
-    }
-
-    // 更新 DisplayObject
-    if (this.contentContainer) {
-      const displayObject = this.findDisplayObjectByNodeId(nodeId);
-      if (displayObject) {
-        // 检查是否需要重新创建图形（geometry、material、style 变化时需要重绘）
-        const needsRedraw = updates.geometry || updates.material || updates.style;
-
-        if (needsRedraw) {
-          // 保存当前状态
-          const wasSelected = this.selector?.selected === displayObject;
-          const index = this.contentContainer.getChildIndex(displayObject);
-
-          // 移除旧的 DisplayObject
-          this.contentContainer.removeChild(displayObject);
-          displayObject.destroy();
-
-          // 创建新的 DisplayObject
-          const newDisplayObject = nodeFactory2D.createDisplayObject(node);
-          if (newDisplayObject) {
-            // 插入到原来的位置
-            this.contentContainer.addChildAt(newDisplayObject, index);
-            this.enableDrag(newDisplayObject);
-
-            // 恢复选中状态
-            if (wasSelected) {
-              this.selector?.select(newDisplayObject);
-              this.transformer?.attach(newDisplayObject);
-            }
-          }
-        } else {
-          // 只更新 transform
-          if (updates.transform?.position) {
-            displayObject.position.set(
-              updates.transform.position.x,
-              updates.transform.position.z
-            );
-          }
-          if (updates.transform?.rotation) {
-            displayObject.rotation = (updates.transform.rotation.y * Math.PI) / 180;
-          }
-          if (updates.transform?.scale) {
-            displayObject.scale.set(
-              updates.transform.scale.x,
-              updates.transform.scale.z
-            );
-          }
-
-          // 刷新选择框和变换控制器
-          if (this.selector?.selected === displayObject) {
-            this.selector.refreshBoundingBox();
-            this.transformer?.updateControls();
-          }
-        }
-      }
-    }
-
-    // 构建变化事件
-    const changes: SceneNodeChanges = {};
-    if (updates.transform) changes.transform = updates.transform;
-    if (updates.geometry) changes.geometry = updates.geometry;
-    if (updates.material) changes.material = updates.material;
-    if (updates.style) changes.style = updates.style;
-    if (updates.name !== undefined) changes.name = updates.name;
-
-    this.emitSceneChange({
-      type: "transform",
-      nodeId: nodeId,
-      node: node,
-      changes: changes,
-    });
-
-    return true;
-  }
-
-  /**
-   * 获取节点数据
-   * @param nodeId 节点 ID
-   */
-  getNode(nodeId: string): SceneNode | null {
-    return this.sceneModel.nodes.find((n) => n.id === nodeId) || null;
-  }
-
-  /**
-   * 获取所有节点
-   */
-  getNodes(): SceneNode[] {
-    return [...this.sceneModel.nodes];
-  }
-
-  /**
-   * 通过节点 ID 查找 DisplayObject
-   */
-  private findDisplayObjectByNodeId(nodeId: string): Container | null {
-    if (!this.contentContainer) return null;
-
-    for (const child of this.contentContainer.children) {
-      if (child instanceof Container && (child as any).nodeId === nodeId) {
-        return child;
-      }
-    }
-    return null;
-  }
-
-  /**
-   * 获取当前选中的节点 ID
-   */
-  getSelectedNodeId(): string | null {
-    if (!this.selector?.selected) return null;
-    return this.getNodeId(this.selector.selected);
-  }
-
-  /**
-   * 通过节点 ID 选中节点
-   */
-  selectNodeById(nodeId: string | null): void {
-    if (!nodeId) {
-      this.selector?.deselect();
-      this.transformer?.detach();
-      return;
-    }
-
-    const displayObject = this.findDisplayObjectByNodeId(nodeId);
-    if (displayObject) {
-      this.selector?.select(displayObject);
-      this.transformer?.attach(displayObject);
-    }
-  }
-
-  /**
-   * 根据 DisplayObject 获取节点 ID
-   */
-  private getNodeId(object: Container): string | null {
-    return (object as any).nodeId ?? null;
   }
 
   /**
@@ -497,13 +271,11 @@ export class Pixi2D {
     if (!this.app) return;
 
     let isDragging = false;
-    let hasMoved = false; // 标记是否真正移动了
+    let hasMoved = false;
     let dragStartPoint: { x: number; y: number } | null = null;
     let objectStartPosition: { x: number; y: number } | null = null;
 
-    // 指针按下
     object.on("pointerdown", (e: FederatedPointerEvent) => {
-      // 如果正在使用变换控制器，不处理拖拽
       if (this.transformer?.isDraggingObject()) {
         return;
       }
@@ -513,12 +285,9 @@ export class Pixi2D {
       hasMoved = false;
       dragStartPoint = { x: e.globalX, y: e.globalY };
       objectStartPosition = { x: object.x, y: object.y };
-
-      // 设置光标
       object.cursor = "move";
     });
 
-    // 指针移动（使用全局事件，确保移出元素也能继续拖拽）
     const onPointerMove = (e: PointerEvent) => {
       if (!isDragging || !dragStartPoint || !objectStartPosition) return;
 
@@ -530,21 +299,16 @@ export class Pixi2D {
       const deltaY = currentY - dragStartPoint.y;
       const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-      // 如果移动距离超过阈值，认为是拖拽
       if (distance > 3) {
         if (!hasMoved) {
           hasMoved = true;
           this.isDraggingElement = true;
         }
 
-        // 获取 contentContainer 的缩放比例
         const scale = this.contentContainer?.scale.x ?? 1;
-
-        // 更新对象位置（需要将屏幕坐标的 delta 转换为内容坐标系的 delta）
         object.x = objectStartPosition.x + deltaX / scale;
         object.y = objectStartPosition.y + deltaY / scale;
 
-        // 如果对象被选中，更新变换控制器和边界框
         if (this.selector?.selected === object) {
           this.transformer?.updateControls();
           this.selector.refreshBoundingBox();
@@ -552,25 +316,18 @@ export class Pixi2D {
       }
     };
 
-    // 指针释放
     const onPointerUp = () => {
       if (isDragging) {
-        // 如果没有真正移动，认为是点击，应该选择对象
         if (!hasMoved) {
-          // 选择对象
           this.selector?.select(object);
         } else {
-          // 拖拽结束，触发数据变化事件
-          const nodeId = this.getNodeId(object);
+          const nodeId = this.getNodeIdFromDisplayObject(object);
           if (nodeId && objectStartPosition) {
-            // 只有位置真正发生变化才触发
             if (
               object.x !== objectStartPosition.x ||
               object.y !== objectStartPosition.y
             ) {
-              // 获取原始节点数据中的 y 值（高度）
               const originalY = this.getNodeOriginalY(nodeId);
-              // 2D 坐标映射回 3D：2D的x -> 3D的x，2D的y -> 3D的z，保持3D的y不变
               this.emitSceneChange({
                 type: "transform",
                 nodeId,
@@ -591,18 +348,15 @@ export class Pixi2D {
         objectStartPosition = null;
         object.cursor = "pointer";
 
-        // 更新边界框
         if (this.selector?.selected === object) {
           this.selector.refreshBoundingBox();
         }
       }
     };
 
-    // 绑定全局事件
     document.addEventListener("pointermove", onPointerMove);
     document.addEventListener("pointerup", onPointerUp);
 
-    // 在对象销毁时移除事件监听
     object.on("destroyed", () => {
       document.removeEventListener("pointermove", onPointerMove);
       document.removeEventListener("pointerup", onPointerUp);
@@ -619,19 +373,16 @@ export class Pixi2D {
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
 
-    // 指针事件
     this.app.stage.on("pointerdown", this.onPointerDown);
     this.app.stage.on("pointerup", this.onPointerUp);
     this.app.stage.on("dblclick", this.onDoubleClick);
 
-    // 画布缩放和拖拽事件
     this.app.canvas.addEventListener("wheel", this.onWheel, { passive: false });
     this.app.canvas.addEventListener("pointerdown", this.onCanvasPointerDown);
     this.app.canvas.addEventListener("pointermove", this.onCanvasPointerMove);
     this.app.canvas.addEventListener("pointerup", this.onCanvasPointerUp);
     this.app.canvas.addEventListener("pointerleave", this.onCanvasPointerUp);
 
-    // 跟踪鼠标进入/离开画布
     this.app.canvas.addEventListener("pointerenter", this.onCanvasPointerEnter);
     this.app.canvas.addEventListener("pointerleave", this.onCanvasPointerLeave);
   }
@@ -641,35 +392,11 @@ export class Pixi2D {
    */
   private onResize = (): void => {
     if (!this.app) return;
-
-    // PixiJS 会自动处理 resizeTo，这里可以添加额外处理
     if (this.selector?.selected) {
       this.selector.refreshBoundingBox();
       this.transformer?.updateControls();
     }
   };
-
-  /**
-   * 检查是否应该处理键盘事件
-   * 只有当鼠标在画布上且焦点不在输入框时才处理
-   */
-  private shouldHandleKeyboardEvent(): boolean {
-    // 如果鼠标不在画布上，不处理
-    if (!this.isCanvasHovered) return false;
-
-    // 如果焦点在输入框、文本框或可编辑元素上，不处理
-    const activeElement = document.activeElement;
-    if (
-      activeElement &&
-      (activeElement.tagName === "INPUT" ||
-        activeElement.tagName === "TEXTAREA" ||
-        activeElement.hasAttribute("contenteditable"))
-    ) {
-      return false;
-    }
-
-    return true;
-  }
 
   /**
    * 键盘按下事件
@@ -721,7 +448,6 @@ export class Pixi2D {
 
     const code = event.code.toLowerCase();
 
-    // 空格键释放 - 禁用画布拖拽模式
     if (code === "space") {
       this.isSpacePressed = false;
       this.isPanningCanvas = false;
@@ -729,20 +455,6 @@ export class Pixi2D {
         this.app.canvas.style.cursor = "default";
       }
     }
-  };
-
-  /**
-   * 鼠标进入画布
-   */
-  private onCanvasPointerEnter = (): void => {
-    this.isCanvasHovered = true;
-  };
-
-  /**
-   * 鼠标离开画布
-   */
-  private onCanvasPointerLeave = (): void => {
-    this.isCanvasHovered = false;
   };
 
   /**
@@ -757,26 +469,20 @@ export class Pixi2D {
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
 
-    // 计算缩放因子
     const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
     const currentScale = this.contentContainer.scale.x;
     let newScale = currentScale * zoomFactor;
-
-    // 限制缩放范围
     newScale = Math.max(this.minZoom, Math.min(this.maxZoom, newScale));
 
     if (newScale === currentScale) return;
 
-    // 计算缩放中心点（鼠标位置）
     const worldPosBefore = {
       x: (mouseX - this.contentContainer.x) / currentScale,
       y: (mouseY - this.contentContainer.y) / currentScale,
     };
 
-    // 应用新缩放
     this.contentContainer.scale.set(newScale, newScale);
 
-    // 调整位置以保持鼠标位置不变
     const worldPosAfter = {
       x: (mouseX - this.contentContainer.x) / newScale,
       y: (mouseY - this.contentContainer.y) / newScale,
@@ -785,7 +491,6 @@ export class Pixi2D {
     this.contentContainer.x += (worldPosAfter.x - worldPosBefore.x) * newScale;
     this.contentContainer.y += (worldPosAfter.y - worldPosBefore.y) * newScale;
 
-    // 更新选择器和变换器
     if (this.selector?.selected) {
       this.selector.refreshBoundingBox();
       this.transformer?.updateControls();
@@ -796,7 +501,6 @@ export class Pixi2D {
    * 画布指针按下 - 开始拖拽画布
    */
   private onCanvasPointerDown = (event: PointerEvent): void => {
-    // 中键拖拽或空格+左键拖拽
     if (event.button === 1 || (event.button === 0 && this.isSpacePressed)) {
       this.isPanningCanvas = true;
       this.panStartPosition = { x: event.clientX, y: event.clientY };
@@ -823,7 +527,6 @@ export class Pixi2D {
     this.contentContainer.x = this.panStartCanvasPosition.x + deltaX;
     this.contentContainer.y = this.panStartCanvasPosition.y + deltaY;
 
-    // 更新选择器和变换器
     if (this.selector?.selected) {
       this.selector.refreshBoundingBox();
       this.transformer?.updateControls();
@@ -833,7 +536,7 @@ export class Pixi2D {
   /**
    * 画布指针释放 - 结束拖拽画布
    */
-  private onCanvasPointerUp = (event: PointerEvent): void => {
+  private onCanvasPointerUp = (): void => {
     if (this.isPanningCanvas) {
       this.isPanningCanvas = false;
       if (this.app?.canvas) {
@@ -845,14 +548,8 @@ export class Pixi2D {
   /**
    * 获取鼠标位置
    */
-  private getPointerPosition(event: FederatedPointerEvent): {
-    x: number;
-    y: number;
-  } {
-    return {
-      x: event.global.x,
-      y: event.global.y,
-    };
+  private getPointerPosition(event: FederatedPointerEvent): { x: number; y: number } {
+    return { x: event.global.x, y: event.global.y };
   }
 
   /**
@@ -872,26 +569,20 @@ export class Pixi2D {
     this.pointerUpPosition.x = pos.x;
     this.pointerUpPosition.y = pos.y;
 
-    // 如果正在拖拽元素，不处理选择（元素自己的 onPointerUp 会处理选择）
     if (this.isDraggingElement) {
       return;
     }
 
-    // 检查是否是点击（而不是拖拽）
     const dx = this.pointerUpPosition.x - this.pointerDownPosition.x;
     const dy = this.pointerUpPosition.y - this.pointerDownPosition.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    // 如果移动距离很小，认为是点击
     if (distance < 5) {
-      // 如果正在拖拽变换控制器，不处理选择
       if (!this.transformer?.isDraggingObject()) {
-        // 尝试选择点击位置的对象，如果没有对象则取消选择
         const selected = this.selector?.selectByPoint(
           this.pointerUpPosition.x,
           this.pointerUpPosition.y
         );
-        // 如果没有选中任何对象，取消选择
         if (!selected) {
           this.selector?.deselect();
         }
@@ -915,30 +606,13 @@ export class Pixi2D {
    * 聚焦到对象
    */
   focusOnObject(object: Container): void {
-    // 2D 场景中的聚焦可以通过滚动或缩放来实现
-    // 这里简单地确保对象可见
     const bounds = object.getBounds();
     const centerX = bounds.x + bounds.width / 2;
     const centerY = bounds.y + bounds.height / 2;
-
-    // 可以在这里添加平移画布的逻辑
     console.log(`Focus on object at (${centerX}, ${centerY})`);
   }
 
-  /**
-   * 删除选中的对象
-   */
-  deleteSelected(): void {
-    const selected = this.selector?.selected;
-    if (!selected) return;
-
-    // 获取节点 ID
-    const nodeId = this.getNodeId(selected);
-    if (nodeId) {
-      // 使用 removeNode 方法删除，这会同时更新数据模型和触发事件
-      this.removeNode(nodeId);
-    }
-  }
+  // ============ 公共 API ============
 
   /**
    * 选择对象
@@ -996,39 +670,12 @@ export class Pixi2D {
     this.transformer?.onTransformEnd(callback);
   }
 
-  /**
-   * 添加场景数据变化监听
-   * 当画布中的节点发生变化时（位置、旋转、缩放等），会触发此回调
-   */
-  onSceneChange(callback: SceneChangeCallback): void {
-    this.sceneChangeCallbacks.push(callback);
-  }
-
-  /**
-   * 移除场景数据变化监听
-   */
-  offSceneChange(callback: SceneChangeCallback): void {
-    const index = this.sceneChangeCallbacks.indexOf(callback);
-    if (index !== -1) {
-      this.sceneChangeCallbacks.splice(index, 1);
-    }
-  }
-
   // ============ 画布缩放和平移 API ============
 
-  /**
-   * 获取当前缩放级别
-   */
   getZoom(): number {
     return this.contentContainer?.scale.x ?? 1;
   }
 
-  /**
-   * 设置缩放级别
-   * @param zoom 缩放级别 (0.1 - 10)
-   * @param centerX 缩放中心 X（可选，默认为画布中心）
-   * @param centerY 缩放中心 Y（可选，默认为画布中心）
-   */
   setZoom(zoom: number, centerX?: number, centerY?: number): void {
     if (!this.contentContainer || !this.app) return;
 
@@ -1037,20 +684,16 @@ export class Pixi2D {
 
     if (newScale === currentScale) return;
 
-    // 默认以画布中心为缩放中心
     const cx = centerX ?? this.app.canvas.width / 2;
     const cy = centerY ?? this.app.canvas.height / 2;
 
-    // 计算缩放中心点
     const worldPosBefore = {
       x: (cx - this.contentContainer.x) / currentScale,
       y: (cy - this.contentContainer.y) / currentScale,
     };
 
-    // 应用新缩放
     this.contentContainer.scale.set(newScale, newScale);
 
-    // 调整位置以保持中心点不变
     const worldPosAfter = {
       x: (cx - this.contentContainer.x) / newScale,
       y: (cy - this.contentContainer.y) / newScale,
@@ -1059,42 +702,26 @@ export class Pixi2D {
     this.contentContainer.x += (worldPosAfter.x - worldPosBefore.x) * newScale;
     this.contentContainer.y += (worldPosAfter.y - worldPosBefore.y) * newScale;
 
-    // 更新选择器和变换器
     if (this.selector?.selected) {
       this.selector.refreshBoundingBox();
       this.transformer?.updateControls();
     }
   }
 
-  /**
-   * 放大
-   * @param factor 放大因子，默认 1.2
-   */
   zoomIn(factor: number = 1.2): void {
     this.setZoom(this.getZoom() * factor);
   }
 
-  /**
-   * 缩小
-   * @param factor 缩小因子，默认 0.8
-   */
   zoomOut(factor: number = 0.8): void {
     this.setZoom(this.getZoom() * factor);
   }
 
-  /**
-   * 重置缩放到 100%
-   */
   resetZoom(): void {
     this.setZoom(1);
   }
 
   /**
    * 将屏幕坐标转换为世界坐标
-   * 考虑画布的缩放和平移
-   * @param screenX 屏幕 X 坐标（相对于容器）
-   * @param screenY 屏幕 Y 坐标（相对于容器）
-   * @returns 世界坐标（像素单位）
    */
   screenToWorldPosition(screenX: number, screenY: number): { x: number; y: number; z: number } {
     if (!this.contentContainer) {
@@ -1105,16 +732,12 @@ export class Pixi2D {
     const panX = this.contentContainer.x;
     const panY = this.contentContainer.y;
 
-    // 将屏幕坐标转换为世界坐标：(screen - pan) / scale
     const worldX = (screenX - panX) / scale;
     const worldZ = (screenY - panY) / scale;
 
     return { x: worldX, y: 0, z: worldZ };
   }
 
-  /**
-   * 获取画布平移位置
-   */
   getPan(): { x: number; y: number } {
     return {
       x: this.contentContainer?.x ?? 0,
@@ -1122,66 +745,48 @@ export class Pixi2D {
     };
   }
 
-  /**
-   * 设置画布平移位置
-   */
   setPan(x: number, y: number): void {
     if (!this.contentContainer) return;
 
     this.contentContainer.x = x;
     this.contentContainer.y = y;
 
-    // 更新选择器和变换器
     if (this.selector?.selected) {
       this.selector.refreshBoundingBox();
       this.transformer?.updateControls();
     }
   }
 
-  /**
-   * 重置画布位置到原点
-   */
   resetPan(): void {
     this.setPan(0, 0);
   }
 
-  /**
-   * 重置视图（缩放和平移）
-   */
   resetView(): void {
     this.resetZoom();
     this.resetPan();
   }
 
-  /**
-   * 适应内容到视图
-   */
   fitToView(padding: number = 50): void {
     if (!this.contentContainer || !this.app) return;
 
-    // 获取内容边界
     const bounds = this.contentContainer.getLocalBounds();
     if (bounds.width === 0 || bounds.height === 0) return;
 
     const canvasWidth = this.app.canvas.width;
     const canvasHeight = this.app.canvas.height;
 
-    // 计算适合的缩放级别
     const scaleX = (canvasWidth - padding * 2) / bounds.width;
     const scaleY = (canvasHeight - padding * 2) / bounds.height;
     const scale = Math.min(scaleX, scaleY, this.maxZoom);
     const clampedScale = Math.max(this.minZoom, scale);
 
-    // 应用缩放
     this.contentContainer.scale.set(clampedScale, clampedScale);
 
-    // 居中内容
     const scaledWidth = bounds.width * clampedScale;
     const scaledHeight = bounds.height * clampedScale;
     this.contentContainer.x = (canvasWidth - scaledWidth) / 2 - bounds.x * clampedScale;
     this.contentContainer.y = (canvasHeight - scaledHeight) / 2 - bounds.y * clampedScale;
 
-    // 更新选择器和变换器
     if (this.selector?.selected) {
       this.selector.refreshBoundingBox();
       this.transformer?.updateControls();
@@ -1190,10 +795,6 @@ export class Pixi2D {
 
   // ============ 视口状态保存/恢复 ============
 
-  /**
-   * 获取当前视口状态
-   * 用于在切换模式前保存状态
-   */
   getViewportState(): ViewportState2D {
     return {
       pan: this.getPan(),
@@ -1201,12 +802,7 @@ export class Pixi2D {
     };
   }
 
-  /**
-   * 设置视口状态
-   * 用于在切换模式后恢复状态
-   */
   async setViewportState(state: ViewportState2D): Promise<void> {
-    // 等待初始化完成
     await this.ready();
 
     if (state.pan) {
@@ -1226,15 +822,11 @@ export class Pixi2D {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
 
-    // 清理回调
-    this.sceneChangeCallbacks = [];
-
     // 销毁选择器和变换器
     this.selector?.dispose();
     this.transformer?.dispose();
 
     if (this.app) {
-      // 移除画布事件
       this.app.canvas.removeEventListener("wheel", this.onWheel);
       this.app.canvas.removeEventListener("pointerdown", this.onCanvasPointerDown);
       this.app.canvas.removeEventListener("pointermove", this.onCanvasPointerMove);
@@ -1243,19 +835,17 @@ export class Pixi2D {
       this.app.canvas.removeEventListener("pointerenter", this.onCanvasPointerEnter);
       this.app.canvas.removeEventListener("pointerleave", this.onCanvasPointerLeave);
 
-      // 移除 canvas
       if (this.app.canvas && this.app.canvas.parentNode) {
         this.app.canvas.parentNode.removeChild(this.app.canvas);
       }
-      // 销毁应用
-      this.app.destroy(true, {
-        children: true,
-        texture: true,
-      });
+      this.app.destroy(true, { children: true, texture: true });
       this.app = null;
     }
 
     this.contentContainer = null;
+
+    // 调用基类清理
+    this.disposeBase();
   }
 }
 
@@ -1268,8 +858,4 @@ export {
   TransformEndCallback2D,
 } from "./transformer";
 export { NodeFactory2D, nodeFactory2D, parseColor } from "./nodeFactory";
-export {
-  Pixi2DOptions,
-  TransformMode2D,
-  TransformChangeEvent2D,
-} from "./types";
+export { Pixi2DOptions, TransformMode2D, TransformChangeEvent2D } from "./types";
