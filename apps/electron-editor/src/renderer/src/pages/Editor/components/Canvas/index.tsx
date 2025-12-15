@@ -138,24 +138,10 @@ const Canvas = ({ className, defaultRunMode = 'edit' }: CanvasProps) => {
     // 将 SDK 实例注册到 EditorContext
     setSDKRef.current(sdk)
 
-    // 等待 2D 渲染器初始化完成后再注册选择监听
-    const renderer = sdk.get2DRenderer()
-    if (renderer) {
-      renderer.ready().then(() => {
-        if (renderer.selector) {
-          renderer.selector.onChange((object) => {
-            if (object) {
-              const nodeId = (object as any).nodeId
-              if (nodeId) {
-                selectNodeRef.current(nodeId)
-              }
-            } else {
-              selectNodeRef.current(null)
-            }
-          })
-        }
-      })
-    }
+    // 注册选择变化监听（SDK 会在模式切换时自动重新绑定）
+    sdk.onSelectionChange((nodeId) => {
+      selectNodeRef.current(nodeId)
+    })
 
     console.log('SDK initialized:', sdk)
 
@@ -202,24 +188,28 @@ const Canvas = ({ className, defaultRunMode = 'edit' }: CanvasProps) => {
 
         // 获取放置位置（相对于容器）
         const container = containerRef.current
-        if (!container) return
+        const sdk = sdkRef.current
+        if (!container || !sdk) return
 
         const rect = container.getBoundingClientRect()
-        const x = e.clientX - rect.left
-        const y = e.clientY - rect.top
+        const screenX = e.clientX - rect.left
+        const screenY = e.clientY - rect.top
+
+        // 使用 SDK 将屏幕坐标转换为世界坐标
+        const worldPos = sdk.screenToWorldPosition(screenX, screenY)
 
         // 创建节点
-        const node = getDefaultNodeConfig(dragData.shapeType, { x, z: y })
+        const node = getDefaultNodeConfig(dragData.shapeType, { x: worldPos.x, z: worldPos.z })
 
         // 添加到场景
         addNode(node)
 
-        console.log('Dropped shape:', dragData.shapeType, 'at', { x, y })
+        console.log('Dropped shape:', dragData.shapeType, 'at world position', worldPos)
       } catch (error) {
         console.error('Failed to handle drop:', error)
       }
     },
-    [addNode]
+    [addNode, sdkRef]
   )
 
   return (

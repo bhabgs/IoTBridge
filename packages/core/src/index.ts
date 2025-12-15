@@ -143,6 +143,8 @@ class IndustrialConfigSDK {
   private sceneChangeHandler: SceneChangeCallback;
   /** 视口状态缓存 - 用于在切换模式时保持视图状态 */
   private viewportStateCache: ViewportState = {};
+  /** 选择变化回调 */
+  private selectionChangeCallbacks: ((nodeId: string | null) => void)[] = [];
 
   constructor(options: SDKOptions) {
     const { container, sceneModel, onModeChange, onSceneChange } = options;
@@ -182,6 +184,8 @@ class IndustrialConfigSDK {
       });
       // 绑定场景变化监听
       this.target.onSceneChange(this.sceneChangeHandler);
+      // 绑定选择变化监听
+      this.bindSelectionChangeHandler();
     } else if (mode === "3d") {
       this.target = new Three3D({
         container: this.container,
@@ -189,6 +193,8 @@ class IndustrialConfigSDK {
       });
       // 绑定场景变化监听
       this.target.onSceneChange(this.sceneChangeHandler);
+      // 绑定选择变化监听
+      this.bindSelectionChangeHandler();
     } else {
       // 如果模式是 "auto" 或其他不支持的值，默认使用 "3d"
       const defaultMode: SceneMode = "3d";
@@ -202,6 +208,33 @@ class IndustrialConfigSDK {
       });
       // 绑定场景变化监听
       this.target.onSceneChange(this.sceneChangeHandler);
+      // 绑定选择变化监听
+      this.bindSelectionChangeHandler();
+    }
+  }
+
+  /**
+   * 绑定选择变化处理器到当前渲染器
+   */
+  private bindSelectionChangeHandler(): void {
+    if (!this.target) return;
+
+    const handleSelectionChange = (object: any) => {
+      const nodeId = object?.nodeId ?? object?.userData?.nodeId ?? null;
+      for (const callback of this.selectionChangeCallbacks) {
+        callback(nodeId);
+      }
+    };
+
+    if (this.target instanceof Pixi2D) {
+      // 等待 2D 渲染器初始化完成
+      this.target.ready().then(() => {
+        if (this.target instanceof Pixi2D && this.target.selector) {
+          this.target.selector.onChange(handleSelectionChange);
+        }
+      });
+    } else if (this.target instanceof Three3D) {
+      this.target.selector.onChange(handleSelectionChange);
     }
   }
 
@@ -425,8 +458,9 @@ class IndustrialConfigSDK {
     if (this.target instanceof Pixi2D) {
       return this.target.addNode(node);
     }
-    // TODO: 支持 Three3D
-    console.warn("addNode is only supported in 2D mode currently");
+    if (this.target instanceof Three3D) {
+      return this.target.addNode(node);
+    }
     return null;
   }
 
@@ -438,8 +472,9 @@ class IndustrialConfigSDK {
     if (this.target instanceof Pixi2D) {
       return this.target.removeNode(nodeId);
     }
-    // TODO: 支持 Three3D
-    console.warn("removeNode is only supported in 2D mode currently");
+    if (this.target instanceof Three3D) {
+      return this.target.removeNode(nodeId);
+    }
     return false;
   }
 
@@ -505,12 +540,51 @@ class IndustrialConfigSDK {
   }
 
   /**
+   * 将屏幕坐标转换为世界坐标
+   * 在 3D 模式下，返回射线与地面 (y=0) 的交点
+   * 在 2D 模式下，考虑画布缩放和平移
+   * @param screenX 屏幕 X 坐标（相对于容器）
+   * @param screenY 屏幕 Y 坐标（相对于容器）
+   * @returns 世界坐标（像素单位）
+   */
+  screenToWorldPosition(screenX: number, screenY: number): { x: number; y: number; z: number } {
+    if (this.target instanceof Pixi2D) {
+      return this.target.screenToWorldPosition(screenX, screenY);
+    }
+    if (this.target instanceof Three3D) {
+      const pos = this.target.screenToWorldPosition(screenX, screenY);
+      return pos || { x: 0, y: 0, z: 0 };
+    }
+    return { x: screenX, y: 0, z: screenY };
+  }
+
+  /**
+   * 添加选择变化监听
+   * 当选中的节点发生变化时触发回调
+   * @param callback 回调函数，参数为选中的节点 ID（取消选择时为 null）
+   */
+  onSelectionChange(callback: (nodeId: string | null) => void): void {
+    this.selectionChangeCallbacks.push(callback);
+  }
+
+  /**
+   * 移除选择变化监听
+   */
+  offSelectionChange(callback: (nodeId: string | null) => void): void {
+    const index = this.selectionChangeCallbacks.indexOf(callback);
+    if (index !== -1) {
+      this.selectionChangeCallbacks.splice(index, 1);
+    }
+  }
+
+  /**
    * 销毁 SDK 实例
    */
   dispose() {
     this.disposeCurrent();
     this.onModeChange = undefined;
     this.onSceneChangeCallback = undefined;
+    this.selectionChangeCallbacks = [];
   }
 }
 

@@ -8,6 +8,7 @@ import {
   Line,
   LineBasicMaterial,
   MeshStandardMaterial,
+  Material,
   Vector3,
 } from "three";
 import { SceneNode } from "../types";
@@ -65,7 +66,7 @@ export class NodeFactory {
       if (node.opacity !== undefined) {
         object.traverse((child) => {
           if (child instanceof Mesh && child.material) {
-            const mat = child.material as MeshBasicMaterial;
+            const mat = child.material as Material;
             mat.transparent = true;
             mat.opacity = node.opacity!;
           }

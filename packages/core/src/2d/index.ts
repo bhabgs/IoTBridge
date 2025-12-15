@@ -8,6 +8,7 @@ import {
 import { nodeFactory2D } from "./nodeFactory";
 import { Selector2D, SelectionChangeCallback2D } from "./selector";
 import { Transformer2D } from "./transformer";
+import { DEFAULT_COLORS } from "../shared/constants";
 
 /**
  * Pixi2D - 2D 编辑器核心类
@@ -69,7 +70,7 @@ export class Pixi2D {
     await this.app.init({
       width: this.container.clientWidth,
       height: this.container.clientHeight,
-      background: this.options.backgroundColor ?? "#1a1a2e",
+      background: this.options.backgroundColor ?? DEFAULT_COLORS.BACKGROUND_2D,
       resizeTo: this.options.autoResize !== false ? this.container : undefined,
       antialias: true,
     });
@@ -83,6 +84,13 @@ export class Pixi2D {
     // 创建内容容器（用于缩放和平移）
     this.contentContainer = new Container();
     this.app.stage.addChild(this.contentContainer);
+
+    // 将世界原点 (0, 0) 定位到屏幕中心
+    // 这样 SceneNode position (0, 0, 0) 会显示在屏幕中心
+    this.contentContainer.position.set(
+      this.container.clientWidth / 2,
+      this.container.clientHeight / 2
+    );
 
     // 创建选择器（禁用边界框，由变换器显示）
     // 选择器需要知道 contentContainer 来查找可选对象
@@ -1030,6 +1038,29 @@ export class Pixi2D {
    */
   resetZoom(): void {
     this.setZoom(1);
+  }
+
+  /**
+   * 将屏幕坐标转换为世界坐标
+   * 考虑画布的缩放和平移
+   * @param screenX 屏幕 X 坐标（相对于容器）
+   * @param screenY 屏幕 Y 坐标（相对于容器）
+   * @returns 世界坐标（像素单位）
+   */
+  screenToWorldPosition(screenX: number, screenY: number): { x: number; y: number; z: number } {
+    if (!this.contentContainer) {
+      return { x: screenX, y: 0, z: screenY };
+    }
+
+    const scale = this.contentContainer.scale.x;
+    const panX = this.contentContainer.x;
+    const panY = this.contentContainer.y;
+
+    // 将屏幕坐标转换为世界坐标：(screen - pan) / scale
+    const worldX = (screenX - panX) / scale;
+    const worldZ = (screenY - panY) / scale;
+
+    return { x: worldX, y: 0, z: worldZ };
   }
 
   /**

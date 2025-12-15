@@ -18,8 +18,12 @@ export const DEFAULT_COLORS = {
   BACKGROUND_2D: '#1a1a2e',
   /** 3D 背景颜色 */
   BACKGROUND_3D: 0x1a1a2e,
-  /** 网格颜色 */
+  /** 网格主线颜色 */
   GRID: 0x444444,
+  /** 网格次线颜色 */
+  GRID_SECONDARY: 0x333344,
+  /** 3D 地板颜色 */
+  FLOOR: 0x252538,
 } as const;
 
 /**

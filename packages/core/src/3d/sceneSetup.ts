@@ -9,6 +9,7 @@ import {
   PlaneGeometry,
   MeshStandardMaterial,
 } from "three";
+import { DEFAULT_COLORS } from "../shared/constants";
 
 export interface SceneSetupOptions {
   backgroundColor?: number | string;
@@ -23,13 +24,13 @@ export interface SceneSetupOptions {
 }
 
 const defaultOptions: SceneSetupOptions = {
-  backgroundColor: 0xf0f0f0,
+  backgroundColor: DEFAULT_COLORS.BACKGROUND_3D,
   gridSize: 10,
   gridDivisions: 20,
   showAxes: true,
   axesSize: 2,
   showFloor: true,
-  floorColor: 0xe0e0e0,
+  floorColor: DEFAULT_COLORS.FLOOR,
   ambientLightIntensity: 0.5,
   directionalLightIntensity: 0.8,
 };
@@ -50,8 +51,8 @@ export function setupScene(
   const gridHelper = new GridHelper(
     opts.gridSize!,
     opts.gridDivisions!,
-    0x888888,
-    0xcccccc
+    DEFAULT_COLORS.GRID,
+    DEFAULT_COLORS.GRID_SECONDARY
   );
   scene.add(gridHelper);
 

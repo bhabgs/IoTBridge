@@ -1,4 +1,4 @@
-import { Scene, PerspectiveCamera, WebGLRenderer, Vector3, Object3D, Box3 } from "three";
+import { Scene, PerspectiveCamera, WebGLRenderer, Vector3, Vector2, Object3D, Box3, Raycaster, Plane } from "three";
 // @ts-ignore - Three.js examples don't have proper type declarations
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SceneModel, SceneNode, SceneChangeEvent, SceneChangeCallback, SceneNodeChanges, ViewportState3D } from "../types";
@@ -770,6 +770,44 @@ export class Three3D {
   // ============ 节点管理方法 ============
 
   /**
+   * 将屏幕坐标转换为世界坐标（在地面 y=0 平面上）
+   * 通过射线投射计算鼠标指向的地面位置
+   * @param screenX 屏幕 X 坐标（相对于容器）
+   * @param screenY 屏幕 Y 坐标（相对于容器）
+   * @returns 世界坐标（像素单位）
+   */
+  screenToWorldPosition(screenX: number, screenY: number): { x: number; y: number; z: number } {
+    const rect = this.container.getBoundingClientRect();
+
+    // 将屏幕坐标转换为归一化设备坐标 (-1 到 1)
+    const ndcX = (screenX / rect.width) * 2 - 1;
+    const ndcY = -(screenY / rect.height) * 2 + 1;
+
+    // 创建射线
+    const raycaster = new Raycaster();
+    raycaster.setFromCamera(new Vector2(ndcX, ndcY), this.camera);
+
+    // 定义地面平面 (y = 0)
+    const groundPlane = new Plane(new Vector3(0, 1, 0), 0);
+
+    // 计算射线与地面的交点
+    const intersection = new Vector3();
+    const hit = raycaster.ray.intersectPlane(groundPlane, intersection);
+
+    if (!hit) {
+      // 如果射线没有命中地面（相机朝上时），返回默认位置
+      return { x: 0, y: 0, z: 0 };
+    }
+
+    // 将 Three.js 世界单位转换为像素单位
+    return {
+      x: intersection.x / SCALE,
+      y: 0,
+      z: intersection.z / SCALE,
+    };
+  }
+
+  /**
    * 获取当前选中的节点 ID
    */
   getSelectedNodeId(): string | null {
@@ -814,6 +852,63 @@ export class Three3D {
    */
   getNodes(): SceneNode[] {
     return [...this.sceneModel.nodes];
+  }
+
+  /**
+   * 添加节点到场景
+   * @param node 节点数据
+   * @returns 添加的节点 ID
+   */
+  addNode(node: SceneNode): string {
+    // 添加到 sceneModel
+    this.sceneModel.nodes.push(node);
+
+    // 创建 3D 对象并添加到场景
+    const object = nodeFactory.createObject3D(node);
+    if (object) {
+      this.scene.add(object);
+    }
+
+    // 触发变化事件
+    this.emitSceneChange({
+      type: "add",
+      nodeId: node.id,
+      node: node,
+    });
+
+    return node.id;
+  }
+
+  /**
+   * 移除节点
+   * @param nodeId 节点 ID
+   */
+  removeNode(nodeId: string): boolean {
+    // 从 sceneModel 中移除
+    const nodeIndex = this.sceneModel.nodes.findIndex((n) => n.id === nodeId);
+    if (nodeIndex === -1) return false;
+
+    const removedNode = this.sceneModel.nodes.splice(nodeIndex, 1)[0];
+
+    // 从场景中移除 Object3D
+    const object = this.findObjectByNodeId(nodeId);
+    if (object) {
+      // 如果是当前选中的，先取消选择
+      if (this.selector.selected === object) {
+        this.selector.deselect();
+        this.transformer.detach();
+      }
+      object.parent?.remove(object);
+    }
+
+    // 触发变化事件
+    this.emitSceneChange({
+      type: "remove",
+      nodeId: nodeId,
+      node: removedNode,
+    });
+
+    return true;
   }
 
   /**
