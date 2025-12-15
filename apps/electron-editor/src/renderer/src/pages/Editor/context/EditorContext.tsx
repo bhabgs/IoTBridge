@@ -28,6 +28,14 @@ interface EditorContextType {
   currentMode: '2D' | '3D'
   /** 设置渲染模式 */
   setCurrentMode: (mode: '2D' | '3D') => void
+  /** 导出场景为 JSON 字符串 */
+  exportScene: () => string
+  /** 导出场景为 JSON 文件 */
+  exportSceneToFile: (filename?: string) => void
+  /** 从 JSON 字符串导入场景 */
+  importScene: (json: string) => void
+  /** 从文件导入场景 */
+  importSceneFromFile: () => Promise<void>
 }
 
 const EditorContext = createContext<EditorContextType | null>(null)
@@ -111,6 +119,44 @@ export const EditorProvider = ({ children }: EditorProviderProps) => {
     return sdkRef.current.getNodes()
   }, [])
 
+  const exportScene = useCallback((): string => {
+    if (!sdkRef.current) return '{}'
+    return sdkRef.current.exportScene()
+  }, [])
+
+  const exportSceneToFile = useCallback((filename?: string): void => {
+    if (!sdkRef.current) return
+    sdkRef.current.exportSceneToFile(filename)
+  }, [])
+
+  const importScene = useCallback((json: string): void => {
+    if (!sdkRef.current) return
+    try {
+      sdkRef.current.importScene(json)
+      // 导入后更新节点版本号以刷新 UI
+      setNodesVersion((v) => v + 1)
+      // 清除选中状态
+      setSelectedNodeId(null)
+    } catch (error) {
+      console.error('Failed to import scene:', error)
+      throw error
+    }
+  }, [])
+
+  const importSceneFromFile = useCallback(async (): Promise<void> => {
+    if (!sdkRef.current) return
+    try {
+      await sdkRef.current.importSceneFromFile()
+      // 导入后更新节点版本号以刷新 UI
+      setNodesVersion((v) => v + 1)
+      // 清除选中状态
+      setSelectedNodeId(null)
+    } catch (error) {
+      console.error('Failed to import scene from file:', error)
+      throw error
+    }
+  }, [])
+
   return (
     <EditorContext.Provider
       value={{
@@ -125,7 +171,11 @@ export const EditorProvider = ({ children }: EditorProviderProps) => {
         getNodes,
         nodesVersion,
         currentMode,
-        setCurrentMode
+        setCurrentMode,
+        exportScene,
+        exportSceneToFile,
+        importScene,
+        importSceneFromFile
       }}
     >
       {children}

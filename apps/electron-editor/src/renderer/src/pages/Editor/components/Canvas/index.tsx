@@ -38,7 +38,7 @@ const getDefaultNodeConfig = (
         ...baseNode,
         type: 'rect',
         name: '矩形',
-        geometry: { width: 100, height: 100, depth: 10 },
+        geometry: { width: 100, height: 100, depth: 100 },
         material: { color: '#4A90D9' }
       } as SceneNode
     case 'circle':

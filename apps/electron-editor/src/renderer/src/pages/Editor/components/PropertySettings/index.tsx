@@ -1,8 +1,15 @@
 import { useEffect, useCallback } from 'react'
-import { Form, Input, InputNumber, Typography, Divider, ColorPicker, Empty, Button } from 'antd'
+import { Form, Typography, Divider, Empty, Button } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { useEditor } from '../../context/EditorContext'
+import {
+  getNodePropertyConfig,
+  getValueByPath,
+  setValueByPath,
+  type PropertyField
+} from '../../config/nodeProperties'
+import { DynamicPropertyEditor } from './DynamicPropertyEditor'
 import styles from './index.module.less'
 
 const { Title, Text } = Typography
@@ -16,20 +23,31 @@ const PropertySettings = ({ className }: { className?: string }) => {
   useEffect(() => {
     const node = getSelectedNode()
     if (node) {
-      // 2D 模式下：宽度=width(X), 高度=depth(Z)
-      // 3D 模式下：长度=width(X), 宽度=depth(Z), 高度=height(Y)
-      form.setFieldsValue({
-        name: node.name || '',
-        x: node.transform?.position?.x ?? 0,
-        y: node.transform?.position?.z ?? 0, // 2D 中 y 对应 3D 的 z
-        z: node.transform?.position?.y ?? 0, // 3D 的高度 y
-        width: node.geometry?.width ?? 100,   // X 轴：2D宽度 / 3D长度
-        depth: node.geometry?.depth ?? 100,   // Z 轴：2D高度 / 3D宽度
-        height: node.geometry?.height ?? 100, // Y 轴：3D高度
-        rotation: node.transform?.rotation?.y ?? 0,
-        color: node.material?.color || node.style?.fill || '#4A90D9',
-        text: node.style?.text || ''
+      const config = getNodePropertyConfig(node.type)
+      if (!config) {
+        form.resetFields()
+        return
+      }
+
+      // 从配置中提取所有字段，并设置表单值
+      const formValues: Record<string, any> = {}
+
+      config.sections.forEach((section) => {
+        section.fields.forEach((field) => {
+          if (field.dataPath) {
+            // 从节点数据中获取值
+            const value = getValueByPath(node, field.dataPath)
+            formValues[field.key] = value !== undefined ? value : field.defaultValue
+          }
+        })
       })
+
+      // 特殊处理：2D 下的 Y 坐标对应 3D 的 Z
+      if (formValues.y === undefined && node.transform?.position?.z !== undefined) {
+        formValues.y = node.transform.position.z
+      }
+
+      form.setFieldsValue(formValues)
     } else {
       form.resetFields()
     }
@@ -43,77 +61,48 @@ const PropertySettings = ({ className }: { className?: string }) => {
       const node = getSelectedNode()
       if (!node) return
 
+      const config = getNodePropertyConfig(node.type)
+      if (!config) return
+
+      // 构建更新对象
       const updates: any = {}
 
-      // 处理位置变化
-      if ('x' in changedValues || 'y' in changedValues || 'z' in changedValues) {
-        updates.transform = {
-          ...node.transform,
-          position: {
-            x: changedValues.x ?? node.transform?.position?.x ?? 0,
-            y: changedValues.z ?? node.transform?.position?.y ?? 0, // z 字段对应 3D 的 y
-            z: changedValues.y ?? node.transform?.position?.z ?? 0  // y 字段对应 3D 的 z
+      // 遍历变化的字段，根据配置的 dataPath 设置值
+      Object.keys(changedValues).forEach((key) => {
+        const value = changedValues[key]
+
+        // 查找对应的字段配置
+        let fieldConfig: PropertyField | undefined = undefined
+        for (const section of config.sections) {
+          const found = section.fields.find((f) => f.key === key)
+          if (found) {
+            fieldConfig = found
+            break
           }
         }
-      }
 
-      // 处理尺寸变化
-      if ('width' in changedValues || 'depth' in changedValues || 'height' in changedValues) {
-        updates.geometry = {
-          ...node.geometry,
-          width: changedValues.width ?? node.geometry?.width ?? 100,   // X 轴
-          depth: changedValues.depth ?? node.geometry?.depth ?? 100,   // Z 轴
-          height: changedValues.height ?? node.geometry?.height ?? 100 // Y 轴
+        if (!fieldConfig || !fieldConfig.dataPath) return
+
+        // 特殊处理颜色值
+        let finalValue = value
+        if (fieldConfig.type === 'color') {
+          finalValue =
+            typeof value === 'string' ? value : value?.toHexString?.() || fieldConfig.defaultValue
         }
-      }
 
-      // 处理旋转变化
-      if ('rotation' in changedValues) {
-        updates.transform = {
-          ...node.transform,
-          ...(updates.transform || {}),
-          rotation: {
-            x: 0,
-            y: changedValues.rotation ?? 0,
-            z: 0
+        // 使用 dataPath 设置嵌套值
+        setValueByPath(updates, fieldConfig.dataPath, finalValue)
+
+        // 特殊处理：如果更新了颜色，同时更新 material.color 和 style.fill
+        if (fieldConfig.key === 'color') {
+          if (node.material) {
+            setValueByPath(updates, 'material.color', finalValue)
+          }
+          if (node.style) {
+            setValueByPath(updates, 'style.fill', finalValue)
           }
         }
-      }
-
-      // 处理颜色变化
-      if ('color' in changedValues) {
-        const colorValue =
-          typeof changedValues.color === 'string'
-            ? changedValues.color
-            : changedValues.color?.toHexString?.() || '#4A90D9'
-
-        if (node.material) {
-          updates.material = {
-            ...node.material,
-            color: colorValue
-          }
-        }
-        if (node.style) {
-          updates.style = {
-            ...node.style,
-            fill: colorValue
-          }
-        }
-      }
-
-      // 处理名称变化
-      if ('name' in changedValues) {
-        updates.name = changedValues.name
-      }
-
-      // 处理文本变化
-      if ('text' in changedValues) {
-        updates.style = {
-          ...node.style,
-          ...(updates.style || {}),
-          text: changedValues.text
-        }
-      }
+      })
 
       if (Object.keys(updates).length > 0) {
         updateNode(selectedNodeId, updates)
@@ -130,7 +119,7 @@ const PropertySettings = ({ className }: { className?: string }) => {
   }, [selectedNodeId, deleteNode])
 
   const node = getSelectedNode()
-  const is3D = currentMode === '3D'
+  const config = node ? getNodePropertyConfig(node.type) : null
 
   return (
     <div className={`${styles.propertySettings} ${className || ''}`}>
@@ -141,87 +130,81 @@ const PropertySettings = ({ className }: { className?: string }) => {
       </div>
       <Divider style={{ margin: '0' }} />
       <div className={styles.propertyContent}>
-        {node ? (
-          <Form
-            form={form}
-            layout="vertical"
-            size="small"
-            onValuesChange={handleValuesChange}
-          >
-            {/* 基础信息 */}
-            <div className={styles.sectionTitle}>
-              <Text type="secondary">基础信息</Text>
-            </div>
-            <Form.Item label="名称" name="name">
-              <Input placeholder="节点名称" />
-            </Form.Item>
-            <Form.Item label="类型">
-              <Input value={node.type} disabled />
-            </Form.Item>
-
-            <Divider style={{ margin: '12px 0' }} />
-
-            {/* 位置和尺寸 */}
-            <div className={styles.sectionTitle}>
-              <Text type="secondary">位置和尺寸</Text>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <Form.Item label="X" name="x" style={{ flex: 1 }}>
-                <InputNumber style={{ width: '100%' }} controls={false} />
-              </Form.Item>
-              <Form.Item label="Y" name="y" style={{ flex: 1 }}>
-                <InputNumber style={{ width: '100%' }} controls={false} />
-              </Form.Item>
-              {is3D && (
-                <Form.Item label="Z (高度)" name="z" style={{ flex: 1 }}>
-                  <InputNumber style={{ width: '100%' }} controls={false} />
-                </Form.Item>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <Form.Item label={is3D ? '长度' : '宽度'} name="width" style={{ flex: 1 }}>
-                <InputNumber style={{ width: '100%' }} min={1} controls={false} />
-              </Form.Item>
-              <Form.Item label={is3D ? '宽度' : '高度'} name="depth" style={{ flex: 1 }}>
-                <InputNumber style={{ width: '100%' }} min={1} controls={false} />
-              </Form.Item>
-              {is3D && (
-                <Form.Item label="高度" name="height" style={{ flex: 1 }}>
-                  <InputNumber style={{ width: '100%' }} min={1} controls={false} />
-                </Form.Item>
-              )}
-            </div>
-            <Form.Item label="旋转 (度)" name="rotation">
-              <InputNumber
-                style={{ width: '100%' }}
-                min={-360}
-                max={360}
-                controls={false}
-              />
-            </Form.Item>
-
-            <Divider style={{ margin: '12px 0' }} />
-
-            {/* 外观 */}
-            <div className={styles.sectionTitle}>
-              <Text type="secondary">外观</Text>
-            </div>
-            <Form.Item label="颜色" name="color">
-              <ColorPicker format="hex" />
-            </Form.Item>
-
-            {/* 文本 (仅文本类型显示) */}
-            {node.type === 'text' && (
-              <>
-                <Divider style={{ margin: '12px 0' }} />
+        {node && config ? (
+          <Form form={form} layout="vertical" size="small" onValuesChange={handleValuesChange}>
+            {config.sections.map((section, sectionIndex) => (
+              <div key={sectionIndex}>
+                {/* 分组标题 */}
                 <div className={styles.sectionTitle}>
-                  <Text type="secondary">文本</Text>
+                  <Text type="secondary">{section.title}</Text>
                 </div>
-                <Form.Item label="文本内容" name="text">
-                  <Input.TextArea placeholder="请输入文本内容" rows={3} />
-                </Form.Item>
-              </>
-            )}
+
+                {/* 渲染字段 */}
+                {section.fields.map((field) => {
+                  // 对于位置字段，使用特殊布局
+                  if (
+                    section.title === '位置和尺寸' ||
+                    section.title === '位置' ||
+                    section.title === '尺寸'
+                  ) {
+                    return null // 位置和尺寸字段在下面特殊处理
+                  }
+
+                  return (
+                    <DynamicPropertyEditor
+                      key={field.key}
+                      field={field}
+                      currentMode={currentMode}
+                    />
+                  )
+                })}
+
+                {/* 特殊布局：位置字段（横向排列） */}
+                {(section.title === '位置和尺寸' || section.title === '位置') && (
+                  <>
+                    <div className={styles.fieldGroup}>
+                      {section.fields
+                        .filter((f) => ['x', 'y', 'z'].includes(f.key))
+                        .map((field) => (
+                          <div key={field.key}>
+                            <DynamicPropertyEditor field={field} currentMode={currentMode} />
+                          </div>
+                        ))}
+                    </div>
+
+                    {/* 尺寸字段 */}
+                    <div className={styles.fieldGroup}>
+                      {section.fields
+                        .filter((f) =>
+                          ['width', 'height', 'depth', 'radius', 'radiusX', 'radiusY'].includes(
+                            f.key
+                          )
+                        )
+                        .map((field) => (
+                          <div key={field.key}>
+                            <DynamicPropertyEditor field={field} currentMode={currentMode} />
+                          </div>
+                        ))}
+                    </div>
+
+                    {/* 旋转字段 */}
+                    {section.fields
+                      .filter((f) => f.key === 'rotation')
+                      .map((field) => (
+                        <DynamicPropertyEditor
+                          key={field.key}
+                          field={field}
+                          currentMode={currentMode}
+                        />
+                      ))}
+                  </>
+                )}
+
+                {sectionIndex < config.sections.length - 1 && (
+                  <Divider style={{ margin: '12px 0' }} />
+                )}
+              </div>
+            ))}
 
             <Divider style={{ margin: '12px 0' }} />
 

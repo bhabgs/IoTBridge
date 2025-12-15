@@ -577,6 +577,91 @@ class IndustrialConfigSDK {
     }
   }
 
+  // ============ 导入导出方法 ============
+
+  /**
+   * 导出场景数据为 JSON 字符串
+   * @returns JSON 字符串
+   */
+  exportScene(): string {
+    return JSON.stringify(this.sceneModel, null, 2);
+  }
+
+  /**
+   * 导出场景数据为 JSON 文件并下载
+   * @param filename 文件名（可选，默认为 "scene.json"）
+   */
+  exportSceneToFile(filename: string = "scene.json"): void {
+    const json = this.exportScene();
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * 从 JSON 字符串导入场景数据
+   * @param json JSON 字符串
+   * @throws 如果 JSON 格式无效
+   */
+  importScene(json: string): void {
+    try {
+      const sceneModel: SceneModel = JSON.parse(json);
+
+      // 验证基本结构
+      if (!sceneModel.nodes || !Array.isArray(sceneModel.nodes)) {
+        throw new Error("Invalid scene model: missing or invalid nodes array");
+      }
+
+      // 更新场景模型
+      this.updateSceneModel(sceneModel);
+    } catch (error) {
+      console.error("Failed to import scene:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 从文件导入场景数据
+   * @returns Promise，在文件选择和导入完成后 resolve
+   */
+  importSceneFromFile(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json,application/json";
+
+      input.onchange = async (event: Event) => {
+        const target = event.target as HTMLInputElement;
+        const file = target.files?.[0];
+
+        if (!file) {
+          reject(new Error("No file selected"));
+          return;
+        }
+
+        try {
+          const text = await file.text();
+          this.importScene(text);
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      input.oncancel = () => {
+        reject(new Error("File selection cancelled"));
+      };
+
+      input.click();
+    });
+  }
+
   /**
    * 销毁 SDK 实例
    */

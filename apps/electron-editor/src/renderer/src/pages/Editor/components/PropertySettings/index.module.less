@@ -2,28 +2,257 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  background: #fafafa;
 }
 
 .propertyHeader {
-  padding: 16px;
+  padding: 20px 16px;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--ant-color-border);
+  background: linear-gradient(to bottom, #ffffff, #fafafa);
+  border-bottom: 1px solid #e8e8e8;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
 .propertyTitle {
   margin: 0 !important;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--ant-color-text);
+  color: #262626;
+  letter-spacing: 0.3px;
 }
 
 .propertyContent {
   flex: 1;
   padding: 16px;
   overflow-y: auto;
+  overflow-x: hidden;
+
+  // 自定义滚动条样式
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #d9d9d9;
+    border-radius: 3px;
+    transition: background 0.2s;
+
+    &:hover {
+      background: #bfbfbf;
+    }
+  }
+
+  // 表单样式优化
+  :global {
+    .ant-form-item {
+      margin-bottom: 16px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    .ant-form-item-label {
+      padding-bottom: 4px;
+
+      > label {
+        font-size: 13px;
+        font-weight: 500;
+        color: #595959;
+        height: auto;
+
+        &::after {
+          display: none;
+        }
+      }
+    }
+
+    // 输入框样式
+    .ant-input,
+    .ant-input-number {
+      border-radius: 6px;
+      border-color: #e0e0e0;
+      font-size: 13px;
+      transition: all 0.2s;
+
+      &:hover {
+        border-color: #1890ff;
+      }
+
+      &:focus,
+      &.ant-input-number-focused {
+        border-color: #1890ff;
+        box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+      }
+
+      &[disabled] {
+        background: #f5f5f5;
+        color: #8c8c8c;
+      }
+    }
+
+    .ant-input-number {
+      width: 100%;
+    }
+
+    // 文本域样式
+    .ant-input-textarea {
+      textarea {
+        border-radius: 6px;
+        border-color: #e0e0e0;
+        font-size: 13px;
+
+        &:hover {
+          border-color: #1890ff;
+        }
+
+        &:focus {
+          border-color: #1890ff;
+          box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+        }
+      }
+    }
+
+    // 颜色选择器样式
+    .ant-color-picker-trigger {
+      border-radius: 6px;
+      border-color: #e0e0e0;
+      transition: all 0.2s;
+      height: 32px;
+
+      &:hover {
+        border-color: #1890ff;
+      }
+    }
+
+    // 分隔线样式
+    .ant-divider-horizontal {
+      margin: 16px 0;
+      border-color: #f0f0f0;
+    }
+  }
 }
 
 .sectionTitle {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #f5f5f5 0%, #fafafa 100%);
+  border-left: 3px solid #1890ff;
+  border-radius: 4px;
   font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #1890ff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+
+  :global {
+    .ant-typography {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: #595959;
+      letter-spacing: 0.5px;
+    }
+  }
+}
+
+// 字段分组容器（用于位置、尺寸等横向排列的字段）
+.fieldGroup {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+
+  > * {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+// 删除按钮特殊样式
+:global {
+  .propertySettings {
+    .ant-btn-dangerous {
+      border-radius: 6px;
+      font-weight: 500;
+      height: 36px;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(255, 77, 79, 0.1);
+
+      &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(255, 77, 79, 0.2);
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+    }
+  }
+}
+
+// Empty 状态样式优化
+:global {
+  .propertySettings {
+    .ant-empty {
+      .ant-empty-description {
+        color: #8c8c8c;
+        font-size: 13px;
+      }
+    }
+  }
+}
+
+// 响应式调整
+@media (max-width: 1200px) {
+  .propertyContent {
+    padding: 12px;
+  }
+
+  .sectionTitle {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+}
+
+// 深色模式支持（可选）
+@media (prefers-color-scheme: dark) {
+  .propertySettings {
+    background: #1f1f1f;
+  }
+
+  .propertyHeader {
+    background: linear-gradient(to bottom, #262626, #1f1f1f);
+    border-bottom-color: #303030;
+  }
+
+  .propertyTitle {
+    color: #e8e8e8;
+  }
+
+  .propertyContent {
+    &::-webkit-scrollbar-thumb {
+      background: #434343;
+
+      &:hover {
+        background: #595959;
+      }
+    }
+  }
+
+  .sectionTitle {
+    background: linear-gradient(135deg, #262626 0%, #1f1f1f 100%);
+    border-left-color: #1890ff;
+    color: #1890ff;
+
+    :global {
+      .ant-typography {
+        color: #bfbfbf;
+      }
+    }
+  }
 }
