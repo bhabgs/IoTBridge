@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react'
 import type IndustrialConfigSDK from 'core'
-import type { SceneNode, SceneChangeEvent } from 'core'
+import type { SceneNode, SceneChangeEvent, SceneModel } from 'core'
 
 /** 编辑器上下文类型 */
 interface EditorContextType {
@@ -36,6 +36,12 @@ interface EditorContextType {
   importScene: (json: string) => void
   /** 从文件导入场景 */
   importSceneFromFile: () => Promise<void>
+  /** 获取场景模型 */
+  getSceneModel: () => SceneModel | null
+  /** 更新场景属性 */
+  updateSceneProperty: (path: string, value: any) => void
+  /** 场景属性版本号，用于触发重渲染 */
+  sceneVersion: number
 }
 
 const EditorContext = createContext<EditorContextType | null>(null)
@@ -58,6 +64,8 @@ export const EditorProvider = ({ children }: EditorProviderProps) => {
   const [currentMode, setCurrentMode] = useState<'2D' | '3D'>('2D')
   // 节点版本号，用于触发依赖节点列表的组件重渲染
   const [nodesVersion, setNodesVersion] = useState(0)
+  // 场景属性版本号，用于触发场景属性面板重渲染
+  const [sceneVersion, setSceneVersion] = useState(0)
   // 使用 ref 来跟踪 selectedNodeId，避免 setSDK 依赖变化
   const selectedNodeIdRef = useRef<string | null>(null)
   selectedNodeIdRef.current = selectedNodeId
@@ -149,12 +157,43 @@ export const EditorProvider = ({ children }: EditorProviderProps) => {
       await sdkRef.current.importSceneFromFile()
       // 导入后更新节点版本号以刷新 UI
       setNodesVersion((v) => v + 1)
+      setSceneVersion((v) => v + 1)
       // 清除选中状态
       setSelectedNodeId(null)
     } catch (error) {
       console.error('Failed to import scene from file:', error)
       throw error
     }
+  }, [])
+
+  const getSceneModel = useCallback((): SceneModel | null => {
+    return sdkRef.current?.sceneModel || null
+  }, [])
+
+  const updateSceneProperty = useCallback((path: string, value: any): void => {
+    if (!sdkRef.current) return
+
+    const sceneModel = sdkRef.current.sceneModel
+    if (!sceneModel) return
+
+    // 按路径设置值
+    const keys = path.split('.')
+    const lastKey = keys.pop()!
+    let target: any = sceneModel
+
+    for (const key of keys) {
+      if (!(key in target)) {
+        target[key] = {}
+      }
+      target = target[key]
+    }
+
+    target[lastKey] = value
+
+    // 更新 SDK 的 sceneModel
+    sdkRef.current.updateSceneModel(sceneModel)
+    // 触发重渲染
+    setSceneVersion((v) => v + 1)
   }, [])
 
   return (
@@ -175,7 +214,10 @@ export const EditorProvider = ({ children }: EditorProviderProps) => {
         exportScene,
         exportSceneToFile,
         importScene,
-        importSceneFromFile
+        importSceneFromFile,
+        getSceneModel,
+        updateSceneProperty,
+        sceneVersion
       }}
     >
       {children}

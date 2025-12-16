@@ -1,4 +1,4 @@
-import { Form, Input, InputNumber, ColorPicker, Select } from 'antd'
+import { Form, Input, InputNumber, ColorPicker, Select, Switch, Slider } from 'antd'
 import type { PropertyField } from '../../config/nodeProperties'
 
 interface DynamicPropertyEditorProps {
@@ -58,12 +58,11 @@ export const DynamicPropertyEditor = ({ field, currentMode }: DynamicPropertyEdi
         )
 
       case 'boolean':
-        return <Input /> // 可以替换为 Switch 或 Checkbox
+        return <Switch />
 
       case 'slider':
         return (
-          <InputNumber
-            style={{ width: '100%' }}
+          <Slider
             min={field.min}
             max={field.max}
             step={field.step}
@@ -79,6 +78,7 @@ export const DynamicPropertyEditor = ({ field, currentMode }: DynamicPropertyEdi
     <Form.Item
       label={field.label}
       name={field.key}
+      valuePropName={field.type === 'boolean' ? 'checked' : 'value'}
       rules={[
         {
           required: field.required,
